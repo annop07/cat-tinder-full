@@ -1,8 +1,8 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import axios from "axios";
+import api, { API_ENDPOINTS } from "../../config/axios";
 import { Asset } from "expo-asset";
 import { useFonts } from "expo-font";
-import { Link, useNavigation, useRouter } from "expo-router";
+import { Link, useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import {
   Alert,
@@ -12,29 +12,29 @@ import {
   Text,
   TextInput,
   View,
+  ActivityIndicator,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { SvgUri } from "react-native-svg";
 
 const Login = () => {
-  const navigation = useNavigation();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [logoUri, setLogoUri] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
 
   const router = useRouter();
-  
 
   const [fontsLoaded] = useFonts({
-    CatIcons: require(".../assets/fonts/CatIcons.ttf"),
-    PawIcons: require(".../assets/fonts/PawIcons.ttf"),
-    SUSEMono: require(".../assets/fonts/SUSEMono.ttf"),
-    Roboto: require(".../assets/fonts/Roboto.ttf"),
+    CatIcons: require("../../assets/fonts/CatIcons.ttf"),
+    PawIcons: require("../../assets/fonts/PawIcons.ttf"),
+    SUSEMono: require("../../assets/fonts/SUSEMono.ttf"),
+    Roboto: require("../../assets/fonts/Roboto.ttf"),
   });
 
   useEffect(() => {
     let isMounted = true;
-    const asset = Asset.fromModule(require("../assets/icons/cat-logo.svg"));
+    const asset = Asset.fromModule(require("../../assets/icons/cat-logo.svg"));
 
     const ensureAsset = async () => {
       if (!asset.localUri) {
@@ -56,23 +56,47 @@ const Login = () => {
     return null;
   }
 
-  const onLogin = () => {
-    // TODO: hook into auth workflow
-    console.log("Logging In", { email, password });
-    const userData = {
-      email:email,
-      password
+  const onLogin = async () => {
+    if (!email || !password) {
+      Alert.alert("กรอกข้อมูลไม่ครบ", "กรุณากรอกอีเมลและรหัสผ่าน");
+      return;
     }
-    axios.post("http://192.168.1.182:5001/login",userData)
-    .then(res => {console.log(res.data)
-      if(res.data.status === "ok"){
-        Alert.alert("Login Successfully!!");
-        //ใช้ AsyncStorage เก็บtokenดึงไปใช้หน้า Home
-        AsyncStorage.setItem("token",res.data.data);
-        router.replace("/home");
-      }
-    });
 
+    setLoading(true);
+    
+    const userData = {
+      email: email.trim(),
+      password
+    };
+
+    try {
+      const response = await axios.post("http://192.168.1.182:5001/login", userData);
+      
+      if (response.data.status === "ok") {
+        // เก็บ token
+        await AsyncStorage.setItem("token", response.data.data);
+        
+        // เก็บข้อมูลเพิ่มเติมถ้ามี
+        if (response.data.userId) {
+          await AsyncStorage.setItem("userId", response.data.userId);
+        }
+        
+        Alert.alert("สำเร็จ", "เข้าสู่ระบบสำเร็จ!");
+        
+        // Navigate ไปหน้า tabs/home
+        router.replace("/(tabs)/");
+      } else {
+        Alert.alert("เกิดข้อผิดพลาด", response.data.message || "ไม่สามารถเข้าสู่ระบบได้");
+      }
+    } catch (error: any) {
+      console.error("Login error:", error);
+      Alert.alert(
+        "เกิดข้อผิดพลาด", 
+        error.response?.data?.message || "ไม่สามารถเชื่อมต่อกับเซิร์ฟเวอร์ได้"
+      );
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -90,7 +114,7 @@ const Login = () => {
               Meowth
             </Text>
             <Text className="mt-2 w-64 text-center text-sm text-gray-500">
-              Sign in to keep tracking cozy spaces for you and your feline companion.
+              ลงชื่อเข้าใช้เพื่อค้นหาคู่ที่ลงตัวสำหรับแมวของคุณ
             </Text>
           </View>
 
@@ -106,6 +130,7 @@ const Login = () => {
                 autoCorrect={false}
                 value={email}
                 onChangeText={setEmail}
+                editable={!loading}
               />
             </View>
             <View className="gap-2">
@@ -117,22 +142,35 @@ const Login = () => {
                 secureTextEntry
                 value={password}
                 onChangeText={setPassword}
+                editable={!loading}
               />
             </View>
           </View>
 
           <View className="mt-auto">
             <Pressable
-              className="rounded-2xl bg-pink-400 py-3 shadow-lg shadow-pink-200"
+              className={`rounded-2xl py-3 shadow-lg shadow-pink-200 ${
+                loading ? "bg-pink-300" : "bg-pink-400"
+              }`}
               android_ripple={{ color: "#f472b6" }}
               onPress={onLogin}
+              disabled={loading}
             >
-              <Text className="text-center text-lg font-semibold text-white">
-                Log in
-              </Text>
+              {loading ? (
+                <ActivityIndicator color="#fff" />
+              ) : (
+                <Text className="text-center text-lg font-semibold text-white">
+                  เข้าสู่ระบบ
+                </Text>
+              )}
             </Pressable>
             <Text className="mt-4 text-center text-sm text-gray-500">
-              You don't have an account. Let's <Link href="/register"><Text className="text-danger underline">signup</Text></Link> to join us!!
+              ยังไม่มีบัญชี?{" "}
+              <Link href="/(auth)/register">
+                <Text className="text-pink-500 underline font-semibold">
+                  สมัครสมาชิก
+                </Text>
+              </Link>
             </Text>
           </View>
         </View>

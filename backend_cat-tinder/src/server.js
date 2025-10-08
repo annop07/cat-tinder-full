@@ -20,7 +20,7 @@ app.use('/api/users', require('./routes/users'));
 app.use('/api/cats', require('./routes/cats'));
 app.use('/api/matches', require('./routes/matches'));
 app.use('/api/conversations', require('./routes/conversations'));
-app.use('/api/messages', require('./routes/messages'));
+app.use('/api/messages', require('./routes/messagesRoute'));
 
 // เชื่อมต่อ MongoDB
 mongoose.connect(process.env.MONGODB_URI, {

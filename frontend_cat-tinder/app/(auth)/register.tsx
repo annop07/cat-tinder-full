@@ -1,6 +1,6 @@
-import axios from "axios";
+import api, { API_ENDPOINTS } from "../../config/axios";
 import { useFonts } from "expo-font";
-import { useRouter } from "expo-router";
+import { useRouter, Link } from "expo-router";
 import { useState } from "react";
 import {
   Alert,
@@ -13,21 +13,17 @@ import {
   TextInput,
   TouchableOpacity,
   View,
+  ActivityIndicator,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-
 const Register = () => {
   const [fontsLoaded] = useFonts({
-    CatIcons: require("./assets/fonts/CatIcons.ttf"),
-    PawIcons: require("../assets/fonts/PawIcons.ttf"),
-    SUSEMono: require("../assets/fonts/SUSEMono.ttf"),
-    Roboto: require("../assets/fonts/Roboto.ttf"),
+    CatIcons: require("../../assets/fonts/CatIcons.ttf"),
+    PawIcons: require("../../assets/fonts/PawIcons.ttf"),
+    SUSEMono: require("../../assets/fonts/SUSEMono.ttf"),
+    Roboto: require("../../assets/fonts/Roboto.ttf"),
   });
-
-  if (!fontsLoaded) {
-    return null;
-  }
 
   const router = useRouter();
 
@@ -43,37 +39,60 @@ const Register = () => {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [confirmPasswordVerify, setConfirmPasswordVerify] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [loading, setLoading] = useState(false);
 
-  
+  if (!fontsLoaded) {
+    return null;
+  }
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
+    // ตรวจสอบการกรอกข้อมูล
+    if (!nameVerify || !emailVerify || !passwordVerify || !confirmPasswordVerify || !phoneVerify) {
+      Alert.alert("กรอกข้อมูลไม่ครบ", "กรุณากรอกข้อมูลให้ครบถ้วนและถูกต้อง");
+      return;
+    }
+
+    if (password !== confirmPassword) {
+      Alert.alert("รหัสผ่านไม่ตรงกัน", "กรุณาตรวจสอบรหัสผ่านอีกครั้ง");
+      return;
+    }
+
+    setLoading(true);
+
     const userData = {
-      name,
-      email,
-      phone,
+      name: name.trim(),
+      email: email.trim(),
+      phone: phone.trim(),
       password,
       confirmPassword,
     };
-    // ตรวจสอบการส่งข้อมูล
-    if(nameVerify && emailVerify && passwordVerify && confirmPasswordVerify && phoneVerify){
 
-      axios
-      .post("http://192.168.1.182:5001/register", userData)
-      .then((res) => {console.log(res.data)
-        if(res.data.status == "ok"){
-          Alert.alert("Register Successfully!!");
-          router.push("/login");
-        }else{
-          Alert.alert(JSON.stringify(res.data));
-        }
-
-      })
-      .catch((error) => console.log(error));
-    }else{
-      Alert.alert("Fill mandatory details")
+    try {
+      const response = await axios.post("http://192.168.1.182:5001/register", userData);
+      
+      if (response.data.status === "ok") {
+        Alert.alert(
+          "สมัครสมาชิกสำเร็จ",
+          "กรุณาเข้าสู่ระบบด้วยบัญชีของคุณ",
+          [
+            {
+              text: "ตกลง",
+              onPress: () => router.replace("/(auth)/login")
+            }
+          ]
+        );
+      } else {
+        Alert.alert("เกิดข้อผิดพลาด", response.data.message || "ไม่สามารถสมัครสมาชิกได้");
+      }
+    } catch (error: any) {
+      console.error("Registration error:", error);
+      Alert.alert(
+        "เกิดข้อผิดพลาด",
+        error.response?.data?.message || "ไม่สามารถเชื่อมต่อกับเซิร์ฟเวอร์ได้"
+      );
+    } finally {
+      setLoading(false);
     }
-
-    
   };
 
   const handleName = (text: string) => {
@@ -116,34 +135,43 @@ const Register = () => {
             <View className="items-center">
               <View className="h-16 w-16 items-center justify-center rounded-full bg-pink-100 shadow-md shadow-pink-200">
                 <Image
-                  source={require("../assets/images/cat-loft.png")}
+                  source={require("../../assets/images/cat-loft.png")}
                   className="h-12 w-12"
                   resizeMode="contain"
                 />
               </View>
               <Text className="mt-6 text-2xl font-semibold text-gray-900 font-[SUSEMono]">
-                Create your profile
+                สร้างโปรไฟล์
               </Text>
               <Text className="mt-2 w-72 text-center text-sm text-gray-500">
-                Join Meowth to discover the coziest spaces for you and your feline friends.
+                เข้าร่วม Meowth เพื่อค้นหาคู่ที่ลงตัวสำหรับแมวของคุณ
               </Text>
             </View>
 
             <View className="mt-10 gap-5">
               <View className="gap-2">
-                <Text className="text-sm font-medium text-gray-700">Name</Text>
+                <Text className="text-sm font-medium text-gray-700">ชื่อ</Text>
                 <TextInput
-                  className="h-12 rounded-2xl border border-pink-100 bg-white/95 px-4 text-base text-gray-900 shadow-sm"
-                  placeholder="Whiskers McMeeow"
+                  className={`h-12 rounded-2xl border ${
+                    name && !nameVerify ? "border-red-300" : "border-pink-100"
+                  } bg-white/95 px-4 text-base text-gray-900 shadow-sm`}
+                  placeholder="ชื่อของคุณ"
                   placeholderTextColor="#c08497"
                   value={name}
                   onChangeText={handleName}
+                  editable={!loading}
                 />
+                {name && !nameVerify && (
+                  <Text className="text-xs text-red-500">ชื่อต้องมีอย่างน้อย 2 ตัวอักษร</Text>
+                )}
               </View>
+
               <View className="gap-2">
-                <Text className="text-sm font-medium text-gray-700">Email</Text>
+                <Text className="text-sm font-medium text-gray-700">อีเมล</Text>
                 <TextInput
-                  className="h-12 rounded-2xl border border-pink-100 bg-white/95 px-4 text-base text-gray-900 shadow-sm"
+                  className={`h-12 rounded-2xl border ${
+                    email && !emailVerify ? "border-red-300" : "border-pink-100"
+                  } bg-white/95 px-4 text-base text-gray-900 shadow-sm`}
                   placeholder="you@example.com"
                   placeholderTextColor="#c08497"
                   keyboardType="email-address"
@@ -151,76 +179,117 @@ const Register = () => {
                   autoCorrect={false}
                   value={email}
                   onChangeText={handleEmail}
+                  editable={!loading}
                 />
+                {email && !emailVerify && (
+                  <Text className="text-xs text-red-500">รูปแบบอีเมลไม่ถูกต้อง</Text>
+                )}
               </View>
+
               <View className="gap-2">
-                <Text className="text-sm font-medium text-gray-700">Phone</Text>
+                <Text className="text-sm font-medium text-gray-700">เบอร์โทร</Text>
                 <TextInput
-                  className="h-12 rounded-2xl border border-pink-100 bg-white/95 px-4 text-base text-gray-900 shadow-sm"
-                  placeholder="02 123 4567"
+                  className={`h-12 rounded-2xl border ${
+                    phone && !phoneVerify ? "border-red-300" : "border-pink-100"
+                  } bg-white/95 px-4 text-base text-gray-900 shadow-sm`}
+                  placeholder="0812345678"
                   placeholderTextColor="#c08497"
                   keyboardType="phone-pad"
                   value={phone}
                   onChangeText={handlePhone}
+                  editable={!loading}
                 />
+                {phone && !phoneVerify && (
+                  <Text className="text-xs text-red-500">เบอร์โทรต้องขึ้นต้นด้วย 0 และมี 10 หลัก</Text>
+                )}
               </View>
-             
+
               <View className="gap-2">
-                <Text className="text-sm font-medium text-gray-700">Password</Text>
+                <Text className="text-sm font-medium text-gray-700">รหัสผ่าน</Text>
                 <TextInput
-                  className="h-12 rounded-2xl border border-pink-100 bg-white/95 px-4 text-base text-gray-900 shadow-sm"
-                  placeholder="At least 8 characters"
+                  className={`h-12 rounded-2xl border ${
+                    password && !passwordVerify ? "border-red-300" : "border-pink-100"
+                  } bg-white/95 px-4 text-base text-gray-900 shadow-sm`}
+                  placeholder="อย่างน้อย 8 ตัวอักษร"
                   placeholderTextColor="#c08497"
                   autoComplete="off"
                   textContentType="none"
                   secureTextEntry={!showPassword}
                   value={password}
                   onChangeText={handlePassword}
+                  editable={!loading}
                 />
                 <TouchableOpacity
                   className="self-end"
                   onPress={() => setShowPassword((prev) => !prev)}
                 >
-                  <Text className="text-xs text-primary-300">
-                    {showPassword ? "Hide password" : "Show password"}
+                  <Text className="text-xs text-pink-400">
+                    {showPassword ? "ซ่อนรหัสผ่าน" : "แสดงรหัสผ่าน"}
                   </Text>
                 </TouchableOpacity>
+                {password && !passwordVerify && (
+                  <Text className="text-xs text-red-500">
+                    รหัสผ่านต้องมีอย่างน้อย 8 ตัวอักษร ประกอบด้วยตัวเลขและตัวอักษร
+                  </Text>
+                )}
               </View>
+
               <View className="gap-2">
-                <Text className="text-sm font-medium text-gray-700">Confirm Password</Text>
+                <Text className="text-sm font-medium text-gray-700">ยืนยันรหัสผ่าน</Text>
                 <TextInput
-                  className="h-12 rounded-2xl border border-pink-100 bg-white/95 px-4 text-base text-gray-900 shadow-sm"
-                  placeholder="Re-enter your password"
+                  className={`h-12 rounded-2xl border ${
+                    confirmPassword && !confirmPasswordVerify ? "border-red-300" : "border-pink-100"
+                  } bg-white/95 px-4 text-base text-gray-900 shadow-sm`}
+                  placeholder="กรอกรหัสผ่านอีกครั้ง"
                   placeholderTextColor="#c08497"
                   autoComplete="off"
                   textContentType="none"
                   secureTextEntry={!showConfirmPassword}
                   value={confirmPassword}
                   onChangeText={handleConfirmPassword}
+                  editable={!loading}
                 />
                 <TouchableOpacity
                   className="self-end"
                   onPress={() => setShowConfirmPassword((prev) => !prev)}
                 >
-                  <Text className="text-xs text-primary-300">
-                    {showConfirmPassword ? "Hide password" : "Show password"}
+                  <Text className="text-xs text-pink-400">
+                    {showConfirmPassword ? "ซ่อนรหัสผ่าน" : "แสดงรหัสผ่าน"}
                   </Text>
                 </TouchableOpacity>
+                {confirmPassword && !confirmPasswordVerify && (
+                  <Text className="text-xs text-red-500">รหัสผ่านไม่ตรงกัน</Text>
+                )}
               </View>
             </View>
 
-            <View className="mt-12">
+            <View className="mt-12 mb-6">
               <Pressable
-                className="rounded-2xl bg-pink-400 py-3 shadow-lg shadow-pink-200"
+                className={`rounded-2xl py-3 shadow-lg shadow-pink-200 ${
+                  loading ? "bg-pink-300" : "bg-pink-400"
+                }`}
                 android_ripple={{ color: "#f472b6" }}
                 onPress={handleSubmit}
+                disabled={loading}
               >
-                <Text className="text-center text-lg font-semibold text-white">
-                  Create account
-                </Text>
+                {loading ? (
+                  <ActivityIndicator color="#fff" />
+                ) : (
+                  <Text className="text-center text-lg font-semibold text-white">
+                    สร้างบัญชี
+                  </Text>
+                )}
               </Pressable>
               <Text className="mt-3 text-center text-xs text-gray-500">
-                By tapping continue you agree to our terms.
+                เมื่อกดดำเนินการต่อ แสดงว่าคุณยอมรับข้อกำหนดของเรา
+              </Text>
+              <Text className="mt-4 text-center text-sm text-gray-500">
+                มีบัญชีอยู่แล้ว?{" "}
+                <Link href="/(auth)/login">
+                  <Text className="text-pink-500 underline font-semibold">
+                    เข้าสู่ระบบ
+                  </Text>
+                </Link>
               </Text>
             </View>
           </View>
