@@ -1,5 +1,4 @@
-
-import axios from 'axios'; // ✅ เพิ่ม import axios
+import axios from 'axios';
 import { useFonts } from "expo-font";
 import { useRouter, Link } from "expo-router";
 import { useState } from "react";
@@ -18,7 +17,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-const API_URL = "http://192.168.1.182:5000"; // ✅ เปลี่ยนเป็น port 5000
+const API_URL = "http://192.168.1.182:5000";
 
 const Register = () => {
   const [fontsLoaded] = useFonts({
@@ -50,11 +49,42 @@ const Register = () => {
 
   const handleSubmit = async () => {
     // ตรวจสอบการกรอกข้อมูล
-    if (!nameVerify || !emailVerify || !passwordVerify || !confirmPasswordVerify || !phoneVerify) {
-      Alert.alert("กรอกข้อมูลไม่ครบ", "กรุณากรอกข้อมูลให้ครบถ้วนและถูกต้อง");
+    if (!name.trim()) {
+      Alert.alert("กรอกข้อมูลไม่ครบ", "กรุณากรอกชื่อ");
       return;
     }
-
+    if (!nameVerify) {
+      Alert.alert("ข้อมูลไม่ถูกต้อง", "ชื่อต้องมีอย่างน้อย 2 ตัวอักษร");
+      return;
+    }
+    if (!email.trim()) {
+      Alert.alert("กรอกข้อมูลไม่ครบ", "กรุณากรอกอีเมล");
+      return;
+    }
+    if (!emailVerify) {
+      Alert.alert("ข้อมูลไม่ถูกต้อง", "รูปแบบอีเมลไม่ถูกต้อง");
+      return;
+    }
+    if (!phone.trim()) {
+      Alert.alert("กรอกข้อมูลไม่ครบ", "กรุณากรอกเบอร์โทร");
+      return;
+    }
+    if (!phoneVerify) {
+      Alert.alert("ข้อมูลไม่ถูกต้อง", "เบอร์โทรต้องขึ้นต้นด้วย 0 และมี 10 หลัก");
+      return;
+    }
+    if (!password) {
+      Alert.alert("กรอกข้อมูลไม่ครบ", "กรุณากรอกรหัสผ่าน");
+      return;
+    }
+    if (!passwordVerify) {
+      Alert.alert("ข้อมูลไม่ถูกต้อง", "รหัสผ่านต้องมีอย่างน้อย 8 ตัวอักษร ประกอบด้วยตัวเลขและตัวอักษร");
+      return;
+    }
+    if (!confirmPassword) {
+      Alert.alert("กรอกข้อมูลไม่ครบ", "กรุณายืนยันรหัสผ่าน");
+      return;
+    }
     if (password !== confirmPassword) {
       Alert.alert("รหัสผ่านไม่ตรงกัน", "กรุณาตรวจสอบรหัสผ่านอีกครั้ง");
       return;
@@ -100,7 +130,7 @@ const Register = () => {
 
   const handleName = (text: string) => {
     setName(text);
-    setNameVerify(text.trim().length > 1);
+    setNameVerify(text.trim().length >= 2);
   };
 
   const handleEmail = (text: string) => {
@@ -116,11 +146,15 @@ const Register = () => {
   const handlePassword = (text: string) => {
     setPassword(text);
     setPasswordVerify(/(?=.*\d)(?=.*[a-z]).{8,}/.test(text));
+    // ตรวจสอบ confirmPassword ถ้ามีการกรอกไว้แล้ว
+    if (confirmPassword) {
+      setConfirmPasswordVerify(text === confirmPassword && /(?=.*\d)(?=.*[a-z]).{8,}/.test(text));
+    }
   };
 
   const handleConfirmPassword = (text: string) => {
     setConfirmPassword(text);
-    setConfirmPasswordVerify(text === password && /(?=.*\d)(?=.*[a-z]).{8,}/.test(text));
+    setConfirmPasswordVerify(text === password && text.length >= 8);
   };
 
   return (
@@ -152,6 +186,7 @@ const Register = () => {
             </View>
 
             <View className="mt-10 gap-5">
+              {/* ชื่อ */}
               <View className="gap-2">
                 <Text className="text-sm font-medium text-gray-700">ชื่อ</Text>
                 <TextInput
@@ -164,11 +199,55 @@ const Register = () => {
                   onChangeText={handleName}
                   editable={!loading}
                 />
-                {phone && !phoneVerify && (
-                  <Text className="text-xs text-red-500">เบอร์โทรต้องขึ้นต้นด้วย 0 และมี 10 หลัก</Text>
+                {name && !nameVerify && (
+                  <Text className="text-xs text-red-500">ชื่อต้องมีอย่างน้อย 2 ตัวอักษร</Text>
                 )}
               </View>
 
+              {/* อีเมล */}
+              <View className="gap-2">
+                <Text className="text-sm font-medium text-gray-700">อีเมล</Text>
+                <TextInput
+                  className={`h-12 rounded-2xl border ${
+                    email && !emailVerify ? "border-red-300" : "border-pink-100"
+                  } bg-white/95 px-4 text-base text-gray-900 shadow-sm`}
+                  placeholder="you@example.com"
+                  placeholderTextColor="#c08497"
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  value={email}
+                  onChangeText={handleEmail}
+                  editable={!loading}
+                />
+                {email && !emailVerify && (
+                  <Text className="text-xs text-red-500">รูปแบบอีเมลไม่ถูกต้อง</Text>
+                )}
+              </View>
+
+              {/* เบอร์โทร */}
+              <View className="gap-2">
+                <Text className="text-sm font-medium text-gray-700">เบอร์โทร</Text>
+                <TextInput
+                  className={`h-12 rounded-2xl border ${
+                    phone && !phoneVerify ? "border-red-300" : "border-pink-100"
+                  } bg-white/95 px-4 text-base text-gray-900 shadow-sm`}
+                  placeholder="0812345678"
+                  placeholderTextColor="#c08497"
+                  keyboardType="phone-pad"
+                  maxLength={10}
+                  value={phone}
+                  onChangeText={handlePhone}
+                  editable={!loading}
+                />
+                {phone && !phoneVerify && (
+                  <Text className="text-xs text-red-500">
+                    เบอร์โทรต้องขึ้นต้นด้วย 0 และมี 10 หลัก
+                  </Text>
+                )}
+              </View>
+
+              {/* รหัสผ่าน */}
               <View className="gap-2">
                 <Text className="text-sm font-medium text-gray-700">รหัสผ่าน</Text>
                 <TextInput
@@ -199,6 +278,7 @@ const Register = () => {
                 )}
               </View>
 
+              {/* ยืนยันรหัสผ่าน */}
               <View className="gap-2">
                 <Text className="text-sm font-medium text-gray-700">ยืนยันรหัสผ่าน</Text>
                 <TextInput

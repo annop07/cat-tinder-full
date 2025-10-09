@@ -1,9 +1,10 @@
 const express = require('express');
 const http = require('http');
-const mongoose = require('mongoose');
 const cors = require('cors');
 require('dotenv').config();
 
+// ✅ Import connectDB
+const connectDB = require('./config/db');
 const { initializeSocket } = require('./socket/socketServer');
 
 const app = express();
@@ -22,18 +23,8 @@ app.use('/api/auth', require('./routes/authRoute'));
 app.use('/api/conversations', require('./routes/conversationsRoute'));
 app.use('/api/messages', require('./routes/messagesRoute'));
 
-// เชื่อมต่อ MongoDB
-mongoose.connect(process.env.MONGODB_URI, {
-  useNewUrlParser: true,
-  useUnifiedTopology: true,
-})
-.then(() => {
-  console.log('MongoDB connected successfully');
-})
-.catch((error) => {
-  console.error('MongoDB connection error:', error);
-  process.exit(1);
-});
+// ✅ เชื่อมต่อ MongoDB ก่อนเริ่ม server
+connectDB();
 
 // Initialize Socket.IO
 const io = initializeSocket(server);
@@ -56,6 +47,7 @@ app.use((err, req, res, next) => {
 const PORT = process.env.PORT || 5000;
 
 server.listen(PORT, () => {
-  console.log(`Server is running on port ${PORT}`);
-  console.log(`Socket.IO server is ready`);
+  console.log(`🚀 Server is running on port ${PORT}`);
+  console.log(`🔌 Socket.IO server is ready`);
+  console.log(`📡 API URL: http://localhost:${PORT}`);
 });

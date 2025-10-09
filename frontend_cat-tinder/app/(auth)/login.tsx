@@ -1,5 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import api, { API_ENDPOINTS } from "../../config/axios";
+import axios from 'axios'; // ✅ เพิ่ม import axios
 import { Asset } from "expo-asset";
 import { useFonts } from "expo-font";
 import { Link, useRouter } from "expo-router";
@@ -16,6 +16,9 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { SvgUri } from "react-native-svg";
+
+// ✅ แก้ไข API URL ให้ตรงกับ server
+const API_URL = "http://192.168.1.182:5000";
 
 const Login = () => {
   const [email, setEmail] = useState("");
@@ -70,7 +73,8 @@ const Login = () => {
     };
 
     try {
-      const response = await axios.post("http://192.168.1.182:5001/login", userData);
+      // ✅ แก้ไข URL ให้ถูกต้อง
+      const response = await axios.post(`${API_URL}/api/auth/login`, userData);
       
       if (response.data.status === "ok") {
         // เก็บ token
@@ -83,17 +87,25 @@ const Login = () => {
         
         Alert.alert("สำเร็จ", "เข้าสู่ระบบสำเร็จ!");
         
-        // Navigate ไปหน้า tabs/home
-        router.replace("/(tabs)/");
+        // Navigate ไปหน้า tabs
+        router.replace("./(tabs)");
       } else {
         Alert.alert("เกิดข้อผิดพลาด", response.data.message || "ไม่สามารถเข้าสู่ระบบได้");
       }
     } catch (error: any) {
       console.error("Login error:", error);
-      Alert.alert(
-        "เกิดข้อผิดพลาด", 
-        error.response?.data?.message || "ไม่สามารถเชื่อมต่อกับเซิร์ฟเวอร์ได้"
-      );
+      
+      let errorMessage = "ไม่สามารถเชื่อมต่อกับเซิร์ฟเวอร์ได้";
+      
+      if (error.response) {
+        // ❌ Server ตอบกลับมาแต่มี error
+        errorMessage = error.response.data?.message || `เกิดข้อผิดพลาด: ${error.response.status}`;
+      } else if (error.request) {
+        // ❌ ส่ง request แต่ไม่ได้รับ response
+        errorMessage = "ไม่สามารถเชื่อมต่อกับเซิร์ฟเวอร์ได้ กรุณาตรวจสอบการเชื่อมต่ออินเทอร์เน็ต";
+      }
+      
+      Alert.alert("เกิดข้อผิดพลาด", errorMessage);
     } finally {
       setLoading(false);
     }
