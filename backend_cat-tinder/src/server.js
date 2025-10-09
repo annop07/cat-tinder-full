@@ -15,11 +15,11 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // Routes
-app.use('/api/auth', require('./routes/auth'));
-app.use('/api/users', require('./routes/users'));
-app.use('/api/cats', require('./routes/cats'));
-app.use('/api/matches', require('./routes/matches'));
-app.use('/api/conversations', require('./routes/conversations'));
+app.use('/api/auth', require('./routes/authRoute'));
+// app.use('/api/users', require('./routes/users')); // ⏸️ Comment ไว้ก่อน (ยังไม่ได้สร้าง)
+// app.use('/api/cats', require('./routes/cats')); // ⏸️ Comment ไว้ก่อน (ยังไม่ได้สร้าง)
+// app.use('/api/matches', require('./routes/matches')); // ⏸️ Comment ไว้ก่อน (ยังไม่ได้สร้าง)
+app.use('/api/conversations', require('./routes/conversationsRoute'));
 app.use('/api/messages', require('./routes/messagesRoute'));
 
 // เชื่อมต่อ MongoDB

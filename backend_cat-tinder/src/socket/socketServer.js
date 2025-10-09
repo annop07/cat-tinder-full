@@ -1,7 +1,7 @@
 const socketIO = require('socket.io');
 const jwt = require('jsonwebtoken');
-const Message = require('../models/Message');
-const Conversation = require('../models/Conversation');
+const Message = require('../models/messageModel');
+const Conversation = require('../models/conversationModel');
 
 let io;
 

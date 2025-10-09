@@ -1,8 +1,8 @@
 const express = require('express');
 const router = express.Router();
-const Message = require('../models/Message');
-const Conversation = require('../models/Conversation');
-const authMiddleware = require('../middleware/auth');
+const Message = require('../models/messageModel');
+const Conversation = require('../models/conversationModel');
+const authMiddleware = require('../middleware/authMiddleware');
 
 // ดึงข้อความทั้งหมดในการสนทนา (พร้อม pagination)
 router.get('/conversation/:conversationId', authMiddleware, async (req, res) => {

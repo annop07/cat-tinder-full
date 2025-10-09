@@ -1,8 +1,8 @@
 const express = require('express');
 const router = express.Router();
-const Conversation = require('../models/Conversation');
-const Message = require('../models/Message');
-const authMiddleware = require('../middleware/auth');
+const Conversation = require('../models/conversationModel');
+const Message = require('../models/messageModel');
+const authMiddleware = require('../middleware/authMiddleware');
 
 // สร้างการสนทนาใหม่ (เมื่อมีการ match)
 router.post('/create', authMiddleware, async (req, res) => {

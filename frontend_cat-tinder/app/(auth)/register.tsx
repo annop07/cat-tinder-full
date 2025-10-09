@@ -1,4 +1,5 @@
-import api, { API_ENDPOINTS } from "../../config/axios";
+
+import axios from 'axios'; // ✅ เพิ่ม import axios
 import { useFonts } from "expo-font";
 import { useRouter, Link } from "expo-router";
 import { useState } from "react";
@@ -16,6 +17,8 @@ import {
   ActivityIndicator,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+
+const API_URL = "http://192.168.1.182:5000"; // ✅ เปลี่ยนเป็น port 5000
 
 const Register = () => {
   const [fontsLoaded] = useFonts({
@@ -68,7 +71,7 @@ const Register = () => {
     };
 
     try {
-      const response = await axios.post("http://192.168.1.182:5001/register", userData);
+      const response = await axios.post(`${API_URL}/api/auth/register`, userData);
       
       if (response.data.status === "ok") {
         Alert.alert(
@@ -159,44 +162,6 @@ const Register = () => {
                   placeholderTextColor="#c08497"
                   value={name}
                   onChangeText={handleName}
-                  editable={!loading}
-                />
-                {name && !nameVerify && (
-                  <Text className="text-xs text-red-500">ชื่อต้องมีอย่างน้อย 2 ตัวอักษร</Text>
-                )}
-              </View>
-
-              <View className="gap-2">
-                <Text className="text-sm font-medium text-gray-700">อีเมล</Text>
-                <TextInput
-                  className={`h-12 rounded-2xl border ${
-                    email && !emailVerify ? "border-red-300" : "border-pink-100"
-                  } bg-white/95 px-4 text-base text-gray-900 shadow-sm`}
-                  placeholder="you@example.com"
-                  placeholderTextColor="#c08497"
-                  keyboardType="email-address"
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                  value={email}
-                  onChangeText={handleEmail}
-                  editable={!loading}
-                />
-                {email && !emailVerify && (
-                  <Text className="text-xs text-red-500">รูปแบบอีเมลไม่ถูกต้อง</Text>
-                )}
-              </View>
-
-              <View className="gap-2">
-                <Text className="text-sm font-medium text-gray-700">เบอร์โทร</Text>
-                <TextInput
-                  className={`h-12 rounded-2xl border ${
-                    phone && !phoneVerify ? "border-red-300" : "border-pink-100"
-                  } bg-white/95 px-4 text-base text-gray-900 shadow-sm`}
-                  placeholder="0812345678"
-                  placeholderTextColor="#c08497"
-                  keyboardType="phone-pad"
-                  value={phone}
-                  onChangeText={handlePhone}
                   editable={!loading}
                 />
                 {phone && !phoneVerify && (
