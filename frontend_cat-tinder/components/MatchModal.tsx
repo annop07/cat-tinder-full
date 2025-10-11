@@ -1,17 +1,18 @@
 import React from 'react';
 import {
+  Modal,
   View,
   Text,
   Image,
-  Modal,
   TouchableOpacity,
   Dimensions,
 } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
+import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/contexts/ThemeContext';
 import { Match } from '@/types';
+import PinkButton from './PinkButton';
 
-const SCREEN_WIDTH = Dimensions.get('window').width;
+const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 
 interface MatchModalProps {
   visible: boolean;
@@ -20,30 +21,17 @@ interface MatchModalProps {
   onSendMessage: () => void;
 }
 
-const MatchModal: React.FC<MatchModalProps> = ({
-  visible,
-  match,
-  onClose,
-  onSendMessage,
-}) => {
+export default function MatchModal({ 
+  visible, 
+  match, 
+  onClose, 
+  onSendMessage 
+}: MatchModalProps) {
   const { colors, isDark } = useTheme();
 
   if (!match) return null;
 
-  const catA = typeof match.catAId === 'object' ? match.catAId : null;
-  const catB = typeof match.catBId === 'object' ? match.catBId : null;
-
-  if (!catA || !catB) return null;
-
-  // Gradient colors for modal background
-  const gradientColors = isDark
-    ? ['#1a1a1a', '#2a2a2a', '#1a1a1a'] as const
-    : ['#fef7ff', '#f3e8ff', '#fef7ff'] as const;
-
-  // Button gradient colors
-  const buttonGradientColors = isDark
-    ? ['#E89292', '#D17C7C', '#C06666'] as const
-    : ['#FADEE1', '#E89292', '#D17C7C'] as const;
+  const { catAId, catBId } = match;
 
   return (
     <Modal
@@ -52,106 +40,177 @@ const MatchModal: React.FC<MatchModalProps> = ({
       animationType="fade"
       onRequestClose={onClose}
     >
-      <View className="flex-1 justify-center items-center" style={{ backgroundColor: 'rgba(0, 0, 0, 0.85)' }}>
-        <LinearGradient
-          colors={gradientColors}
-          className="rounded-3xl p-8 items-center mx-5"
-          style={{ width: SCREEN_WIDTH - 40 }}
-        >
-          {/* Match Text */}
-          <Text
-            className="text-4xl font-bold mb-8 text-center"
-            style={{ color: colors.primary }}
+      <View style={{
+        flex: 1,
+        backgroundColor: 'rgba(0, 0, 0, 0.8)',
+        justifyContent: 'center',
+        alignItems: 'center',
+      }}>
+        <View style={{
+          width: screenWidth * 0.9,
+          backgroundColor: isDark ? '#2a2a2a' : 'white',
+          borderRadius: 24,
+          padding: 24,
+          alignItems: 'center',
+          shadowColor: '#000',
+          shadowOffset: { width: 0, height: 8 },
+          shadowOpacity: 0.3,
+          shadowRadius: 16,
+          elevation: 16,
+        }}>
+          {/* Close Button */}
+          <TouchableOpacity
+            onPress={onClose}
+            style={{
+              position: 'absolute',
+              top: 16,
+              right: 16,
+              width: 36,
+              height: 36,
+              borderRadius: 18,
+              backgroundColor: colors.border,
+              alignItems: 'center',
+              justifyContent: 'center',
+              zIndex: 1,
+            }}
           >
-            It's a Match! 🎉
+            <Ionicons name="close" size={20} color={colors.text} />
+          </TouchableOpacity>
+
+          {/* Match Icon */}
+          <View style={{
+            width: 80,
+            height: 80,
+            borderRadius: 40,
+            backgroundColor: colors.primary,
+            alignItems: 'center',
+            justifyContent: 'center',
+            marginBottom: 20,
+          }}>
+            <Ionicons name="heart" size={40} color="white" />
+          </View>
+
+          {/* Title */}
+          <Text style={{
+            fontSize: 28,
+            fontWeight: 'bold',
+            color: colors.text,
+            marginBottom: 8,
+            textAlign: 'center',
+          }}>
+            It's a Match! 💕
+          </Text>
+
+          <Text style={{
+            fontSize: 16,
+            color: colors.textSecondary,
+            textAlign: 'center',
+            marginBottom: 24,
+            lineHeight: 22,
+          }}>
+            คุณและเจ้าของ {catAId.name} ชอบกันและกัน!{'\n'}
+            เริ่มบทสนทนากันได้เลย
           </Text>
 
           {/* Cat Photos */}
-          <View className="flex-row items-center justify-center mb-8 gap-4">
-            <View className="relative">
-              <View
-                className="w-32 h-32 rounded-full overflow-hidden border-4"
-                style={{ borderColor: '#FF4458' }}
-              >
+          <View style={{
+            flexDirection: 'row',
+            alignItems: 'center',
+            marginBottom: 32,
+            gap: 16,
+          }}>
+            {/* Cat A */}
+            <View style={{ alignItems: 'center' }}>
+              <View style={{
+                width: 100,
+                height: 100,
+                borderRadius: 50,
+                overflow: 'hidden',
+                borderWidth: 4,
+                borderColor: colors.primary,
+              }}>
                 <Image
-                  source={{ uri: catA.photos[0]?.url }}
-                  className="w-full h-full"
+                  source={{ uri: catAId.photos[0]?.url }}
+                  style={{ width: '100%', height: '100%' }}
                   resizeMode="cover"
                 />
               </View>
-              <View className="absolute bottom-0 left-0 right-0 bg-black bg-opacity-60 px-2 py-1 items-center">
-                <Text className="text-white text-sm font-bold">{catA.name}</Text>
-              </View>
+              <Text style={{
+                marginTop: 8,
+                fontSize: 16,
+                fontWeight: 'bold',
+                color: colors.text,
+              }}>
+                {catAId.name}
+              </Text>
             </View>
 
-            <View
-              className="w-16 h-16 rounded-full justify-center items-center"
-              style={{ backgroundColor: 'rgba(255, 68, 88, 0.2)' }}
-            >
-              <Text className="text-4xl">💕</Text>
+            {/* Heart Icon */}
+            <View style={{
+              width: 40,
+              height: 40,
+              borderRadius: 20,
+              backgroundColor: colors.primary + '20',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}>
+              <Ionicons name="heart" size={24} color={colors.primary} />
             </View>
 
-            <View className="relative">
-              <View
-                className="w-32 h-32 rounded-full overflow-hidden border-4"
-                style={{ borderColor: '#FF4458' }}
-              >
+            {/* Cat B */}
+            <View style={{ alignItems: 'center' }}>
+              <View style={{
+                width: 100,
+                height: 100,
+                borderRadius: 50,
+                overflow: 'hidden',
+                borderWidth: 4,
+                borderColor: colors.primary,
+              }}>
                 <Image
-                  source={{ uri: catB.photos[0]?.url }}
-                  className="w-full h-full"
+                  source={{ uri: catBId.photos[0]?.url }}
+                  style={{ width: '100%', height: '100%' }}
                   resizeMode="cover"
                 />
               </View>
-              <View className="absolute bottom-0 left-0 right-0 bg-black bg-opacity-60 px-2 py-1 items-center">
-                <Text className="text-white text-sm font-bold">{catB.name}</Text>
-              </View>
+              <Text style={{
+                marginTop: 8,
+                fontSize: 16,
+                fontWeight: 'bold',
+                color: colors.text,
+              }}>
+                {catBId.name}
+              </Text>
             </View>
           </View>
 
-          {/* Message */}
-          <Text
-            className="text-base text-center mb-8 leading-6"
-            style={{ color: colors.textSecondary }}
-          >
-            คุณและเจ้าของ {catA._id === (typeof match.catAId === 'string' ? match.catAId : match.catAId._id) ? catB.name : catA.name} สนใจกัน!{'\n'}
-            เริ่มแชทเพื่อนัดพบกันได้เลย
-          </Text>
-
-          {/* Buttons */}
-          <View className="w-full gap-4">
-            <TouchableOpacity
+          {/* Action Buttons */}
+          <View style={{ gap: 12, width: '100%' }}>
+            <PinkButton
+              title="ส่งข้อความ 💬"
               onPress={onSendMessage}
-              className="rounded-2xl overflow-hidden"
-              activeOpacity={0.8}
-            >
-              <LinearGradient
-                colors={buttonGradientColors}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 0 }}
-                className="py-4 items-center"
-              >
-                <Text className="text-white text-lg font-semibold">ส่งข้อความ</Text>
-              </LinearGradient>
-            </TouchableOpacity>
-
+              size="large"
+              variant="gradient"
+            />
+            
             <TouchableOpacity
               onPress={onClose}
-              className="py-4 items-center rounded-2xl border-2"
-              style={{ borderColor: colors.border }}
-              activeOpacity={0.8}
+              style={{
+                paddingVertical: 12,
+                alignItems: 'center',
+              }}
             >
-              <Text
-                className="text-lg font-semibold"
-                style={{ color: colors.text }}
-              >
-                ดูต่อ
+              <Text style={{
+                color: colors.textSecondary,
+                fontSize: 16,
+                fontWeight: '500',
+              }}>
+                ภายหลัง
               </Text>
             </TouchableOpacity>
           </View>
-        </LinearGradient>
+        </View>
       </View>
     </Modal>
   );
-};
-
-export default MatchModal;
+}

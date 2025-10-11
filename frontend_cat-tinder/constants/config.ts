@@ -1,9 +1,20 @@
+import { Platform } from 'react-native';
+
 // API Configuration
-// Backend รันที่ http://192.168.110.207:5000
-// ⚠️ สำคัญ: ใช้ IP Address ของเครื่องคอมพิวเตอร์ ไม่ใช่ localhost (สำหรับ Android/iOS)
-export const API_URL = __DEV__
-  ? 'http://192.168.110.207:5000/api'  // Development - ใช้ IP Address ของเครื่อง
-  : 'https://your-production-api.com/api'; // Production
+// Backend รันที่ localhost:5000
+// ⚠️ สำคัญ: ใช้ localhost สำหรับ web, IP Address สำหรับ mobile
+const getApiUrl = () => {
+  if (__DEV__) {
+    // Development - ใช้ Platform-specific URLs
+    if (Platform.OS === 'android') {
+      return 'http://10.0.2.2:5000/api'; // Android Emulator
+    }
+    return 'http://192.168.110.207:5000/api'; // iOS Simulator / Physical Device
+  }
+  return 'https://your-production-api.com/api'; // Production
+};
+
+export const API_URL = getApiUrl();
 
 // Storage Keys
 export const STORAGE_KEYS = {
@@ -19,3 +30,5 @@ export const MESSAGES_LIMIT = 50;
 // Image Upload
 export const MAX_PHOTOS = 5;
 export const MAX_PHOTO_SIZE = 5 * 1024 * 1024; // 5MB
+
+

@@ -37,12 +37,23 @@ const getProfile = async (req, res) => {
  */
 const updateProfile = async (req, res) => {
   try {
-    const { firstName, lastName, displayName, phone, location } = req.body;
+    const { username, phone, location } = req.body;
 
     const updateData = {};
-    if (firstName) updateData.firstName = firstName;
-    if (lastName) updateData.lastName = lastName;
-    if (displayName) updateData.displayName = displayName;
+    if (username) {
+      // Check if username is already taken by another user
+      const existingOwner = await Owner.findOne({
+        username,
+        _id: { $ne: req.user.id }
+      });
+      if (existingOwner) {
+        return res.status(400).json({
+          status: 'error',
+          message: 'Username already taken'
+        });
+      }
+      updateData.username = username;
+    }
     if (phone) updateData.phone = phone;
     if (location) updateData.location = location;
 
@@ -81,22 +92,32 @@ const updateProfile = async (req, res) => {
  */
 const completeOnboarding = async (req, res) => {
   try {
-    const { firstName, lastName, displayName, phone, location } = req.body;
+    const { username, phone, location } = req.body;
 
     // Validate required fields for onboarding
-    if (!firstName || !lastName || !displayName || !location || !location.province || !location.lat || !location.lng) {
+    if (!username || !location || !location.province || !location.lat || !location.lng) {
       return res.status(400).json({
         status: 'error',
         message: 'Missing required fields for onboarding'
       });
     }
 
+    // Check if username is already taken
+    const existingOwner = await Owner.findOne({
+      username,
+      _id: { $ne: req.user.id }
+    });
+    if (existingOwner) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Username already taken'
+      });
+    }
+
     const owner = await Owner.findByIdAndUpdate(
       req.user.id,
       {
-        firstName,
-        lastName,
-        displayName,
+        username,
         phone,
         location,
         onboardingCompleted: true

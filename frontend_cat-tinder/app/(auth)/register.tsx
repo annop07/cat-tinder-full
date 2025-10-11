@@ -26,16 +26,14 @@ const Register = () => {
   const [currentStep, setCurrentStep] = useState(1);
 
   // Form data
-  const [firstName, setFirstName] = useState("");
-  const [lastName, setLastName] = useState("");
+  const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState({
-    firstName: '',
-    lastName: '',
+    username: '',
     email: '',
     phone: '',
     password: '',
@@ -48,19 +46,18 @@ const Register = () => {
     let isValid = true;
 
     if (step === 1) {
-      // Step 1: Name validation
-      if (!firstName.trim()) {
-        newErrors.firstName = 'กรุณากรอกชื่อ';
+      // Step 1: Username validation
+      if (!username.trim()) {
+        newErrors.username = 'กรุณากรอก username';
+        isValid = false;
+      } else if (username.trim().length < 3) {
+        newErrors.username = 'Username ต้องมีอย่างน้อย 3 ตัวอักษร';
+        isValid = false;
+      } else if (!/^[a-zA-Z0-9_]+$/.test(username.trim())) {
+        newErrors.username = 'Username ใช้ได้เฉพาะตัวอักษร ตัวเลข และ _';
         isValid = false;
       } else {
-        newErrors.firstName = '';
-      }
-
-      if (!lastName.trim()) {
-        newErrors.lastName = 'กรุณากรอกนามสกุล';
-        isValid = false;
-      } else {
-        newErrors.lastName = '';
+        newErrors.username = '';
       }
     }
 
@@ -126,14 +123,10 @@ const Register = () => {
 
     setLoading(true);
     try {
-      const displayName = `${firstName.trim()} ${lastName.trim()}`;
-
       await register({
         email: email.trim(),
         password,
-        firstName: firstName.trim(),
-        lastName: lastName.trim(),
-        displayName: displayName,
+        username: username.trim(),
         phone: phone.trim() || undefined,
         location: {
           province: '',
@@ -186,7 +179,7 @@ const Register = () => {
                 fontWeight: step === currentStep ? 'bold' : 'normal',
               }}
             >
-              {step === 1 ? 'ข้อมูลส่วนตัว' : step === 2 ? 'ติดต่อ' : 'รหัสผ่าน'}
+              {step === 1 ? 'ข้อมูลบัญชี' : step === 2 ? 'ติดต่อ' : 'รหัสผ่าน'}
             </Text>
           </View>
           {index < 2 && (
@@ -207,7 +200,7 @@ const Register = () => {
   const getStepTitle = () => {
     switch (currentStep) {
       case 1:
-        return 'ข้อมูลส่วนตัว';
+        return 'ข้อมูลบัญชี';
       case 2:
         return 'ข้อมูลการติดต่อ';
       case 3:
@@ -224,18 +217,12 @@ const Register = () => {
         return (
           <View>
             <ThaiInput
-              label="ชื่อ"
-              value={firstName}
-              onChangeText={setFirstName}
-              placeholder="ชื่อของคุณ"
-              error={errors.firstName}
-            />
-            <ThaiInput
-              label="นามสกุล"
-              value={lastName}
-              onChangeText={setLastName}
-              placeholder="นามสกุล"
-              error={errors.lastName}
+              label="Username"
+              value={username}
+              onChangeText={setUsername}
+              placeholder="username ของคุณ"
+              autoCapitalize="none"
+              error={errors.username}
             />
           </View>
         );

@@ -2,6 +2,7 @@ import axios from 'axios';
 import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
+
 // กำหนด Base URL ตาม Platform
 const getBaseURL = () => {
   // สำหรับ Android Emulator
@@ -11,7 +12,7 @@ const getBaseURL = () => {
   
   // สำหรับ iOS Simulator และ Physical Devices
   // เปลี่ยนเป็น IP address ของคอมพิวเตอร์คุณ
-  return 'http://192.168.1.182:5000';
+  return 'http://192.168.110.207:5000';
 };
 
 // สร้าง axios instance
@@ -104,6 +105,35 @@ export const API_ENDPOINTS = {
   CONVERSATION_MESSAGES: (conversationId: string) => `/api/messages/conversation/${conversationId}`,
   UNREAD_COUNT: '/api/messages/unread/count',
 };
+
+// ใช้ function เพื่อให้ API_URL ตรงกับ Platform
+const getApiUrl = () => {
+  if (__DEV__) {
+    // Development - ใช้ IP ที่เหมือนกับ Backend
+    if (Platform.OS === 'android') {
+      return 'http://10.0.2.2:5000/api'; // Android Emulator
+    }
+    return 'http://192.168.110.207:5000/api'; // iOS Simulator / Physical Device
+  }
+  return 'https://your-production-api.com/api'; // Production
+};
+
+export const API_URL = getApiUrl();
+
+// Storage Keys
+export const STORAGE_KEYS = {
+  TOKEN: '@pawmise_token',
+  USER_ID: '@pawmise_user_id', 
+  THEME: '@pawmise_theme',
+} as const;
+
+// Pagination
+export const DEFAULT_LIMIT = 20;
+export const MESSAGES_LIMIT = 50;
+
+// Image Upload
+export const MAX_PHOTOS = 5;
+export const MAX_PHOTO_SIZE = 5 * 1024 * 1024; // 5MB
 
 // Export Base URL สำหรับ Socket.IO
 export const SOCKET_URL = getBaseURL();

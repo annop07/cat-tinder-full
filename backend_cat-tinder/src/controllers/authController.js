@@ -30,15 +30,24 @@ const register = async (req, res) => {
       });
     }
 
-    const { email, password, firstName, lastName, displayName, phone, location } = req.body;
+    const { email, password, username, phone, location } = req.body;
 
-    // Check if user already exists
-    const existingOwner = await Owner.findOne({ email });
+    // Check if user already exists (email or username)
+    const existingOwner = await Owner.findOne({
+      $or: [{ email }, { username }]
+    });
     if (existingOwner) {
-      return res.status(400).json({
-        status: 'error',
-        message: 'Email already registered'
-      });
+      if (existingOwner.email === email) {
+        return res.status(400).json({
+          status: 'error',
+          message: 'Email already registered'
+        });
+      } else {
+        return res.status(400).json({
+          status: 'error',
+          message: 'Username already taken'
+        });
+      }
     }
 
     // Hash password
@@ -49,9 +58,7 @@ const register = async (req, res) => {
     const newOwner = await Owner.create({
       email,
       passwordHash,
-      firstName,
-      lastName,
-      displayName,
+      username,
       phone,
       location: location || { province: '', lat: 0, lng: 0 },
       onboardingCompleted: false
@@ -176,8 +183,44 @@ const getCurrentUser = async (req, res) => {
   }
 };
 
+/**
+ * Logout user
+ * POST /api/auth/logout
+ * No authentication required - client handles token removal
+ */
+const logout = async (req, res) => {
+  try {
+    // ดึง token จาก header (ถ้ามี) เพื่อ log แต่ไม่ validate
+    const authHeader = req.headers.authorization;
+    const hasToken = authHeader && authHeader.startsWith('Bearer ');
+
+    console.log('🔐 Logout request received', hasToken ? 'with token' : 'without token');
+
+    // ใน production สามารถเพิ่ม token blacklisting ที่นี่
+    // เช่น เก็บ token ใน Redis blacklist จนกว่า token จะหมดอายุ
+    // if (hasToken) {
+    //   const token = authHeader.replace('Bearer ', '');
+    //   await redisClient.setex(`blacklist:${token}`, tokenExpirationTime, 'true');
+    // }
+
+    res.status(200).json({
+      status: 'ok',
+      message: 'Logout successful'
+    });
+
+  } catch (error) {
+    console.error('Logout error:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'Server error during logout',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
 module.exports = {
   register,
   login,
-  getCurrentUser
+  getCurrentUser,
+  logout
 };

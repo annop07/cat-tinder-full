@@ -1,68 +1,55 @@
+export interface Location {
+  province: string;
+  district?: string;
+  lat: number;
+  lng: number;
+}
+
 export interface Owner {
   _id: string;
   email: string;
-  firstName: string;
-  lastName: string;
-  displayName: string;
+  username: string;
   phone?: string;
   avatarUrl?: string;
-  location: {
-    province: string;
-    district?: string;
-    lat: number;
-    lng: number;
-  };
+  location?: Location;
   onboardingCompleted: boolean;
   active: boolean;
   createdAt: string;
   updatedAt: string;
 }
 
+export interface Photo {
+  url: string;
+  publicId: string;
+}
+
 export interface Cat {
   _id: string;
-  ownerId: string | Owner;
+  ownerId: Owner;
   name: string;
   gender: 'male' | 'female';
   ageYears: number;
   ageMonths: number;
   breed: string;
   color?: string;
-  traits: string[]; // ['playful', 'calm', 'friendly', 'shy', 'affectionate']
-  photos: {
-    url: string;
-    publicId?: string;
-  }[];
+  traits: string[];
+  photos: Photo[];
   readyForBreeding: boolean;
   vaccinated: boolean;
-  neutered: boolean;
   notes?: string;
-  location: {
-    province: string;
-    district?: string;
-    lat: number;
-    lng: number;
-  };
+  location?: Location;
   active: boolean;
-  distance?: number; // จาก API response
+  distance?: number; // For nearby cats
   createdAt: string;
   updatedAt: string;
 }
 
-export interface Swipe {
-  _id: string;
-  swiperOwnerId: string;
-  swiperCatId: string;
-  targetCatId: string;
-  action: 'like' | 'pass';
-  createdAt: string;
-}
-
 export interface Match {
   _id: string;
-  catAId: string | Cat;
-  ownerAId: string | Owner;
-  catBId: string | Cat;
-  ownerBId: string | Owner;
+  catAId: Cat;
+  ownerAId: Owner;
+  catBId: Cat;
+  ownerBId: Owner;
   lastMessageAt?: string;
   createdAt: string;
 }
@@ -70,43 +57,67 @@ export interface Match {
 export interface Message {
   _id: string;
   matchId: string;
-  senderOwnerId: string | Owner;
+  senderOwnerId: Owner;
   text: string;
   read: boolean;
   sentAt: string;
 }
 
-// API Response Types
-export interface AuthResponse {
-  status: 'ok' | 'error';
-  message?: string;
-  data?: {
-    token: string;
-    userId: string;
-    onboardingCompleted: boolean;
-  };
+export interface Swipe {
+  _id: string;
+  swiperOwnerId: string;
+  swiperCatId: string;
+  targetCatId: Cat;
+  action: 'like' | 'pass';
+  createdAt: string;
 }
 
-export interface CatFeedResponse {
+// API Response Types
+export interface ApiResponse<T = any> {
   status: 'ok' | 'error';
   message?: string;
+  data?: T;
+  errors?: any[];
+}
+
+export interface CatFeedResponse extends ApiResponse {
   data?: {
     cats: Cat[];
     myCatId: string;
   };
 }
 
-export interface SwipeResponse {
-  status: 'ok' | 'error';
-  message?: string;
+export interface SwipeResponse extends ApiResponse {
   data?: {
+    swipe: Swipe;
     matched: boolean;
     match?: Match;
   };
 }
 
-export interface ApiResponse<T = any> {
-  status: 'ok' | 'error';
-  message?: string;
-  data?: T;
+// Form Types
+export interface RegisterData {
+  email: string;
+  password: string;
+  username: string;
+  phone?: string;
+  location: Location;
+}
+
+export interface LoginData {
+  email: string;
+  password: string;
+}
+
+export interface CreateCatData {
+  name: string;
+  gender: 'male' | 'female';
+  ageYears: number;
+  ageMonths: number;
+  breed: string;
+  color?: string;
+  traits: string[];
+  photos: string[]; // URI strings for React Native
+  vaccinated: boolean;
+  notes?: string;
 }

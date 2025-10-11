@@ -26,22 +26,33 @@ export default function LoginScreen() {
   };
 
   const handleLogin = async () => {
-    if (!validate()) return;
+  if (!validate()) return;
 
-    setLoading(true);
-    try {
-      await login(email, password);
-      router.replace('/(tabs)/home');
-    } catch (error: any) {
-      console.error('Login error:', error);
-      Alert.alert(
-        'เข้าสู่ระบบไม่สำเร็จ', 
-        error.response?.data?.message || error.message || 'กรุณาลองใหม่อีกครั้ง'
-      );
-    } finally {
-      setLoading(false);
+  setLoading(true);
+  try {
+    console.log('🔄 Starting login process...');
+    
+    await login(email.trim(), password);
+    
+    console.log('✅ Login successful, navigating to home');
+    router.replace('/(tabs)/home');
+    
+  } catch (error: any) {
+    console.error('❌ Login error:', error);
+    
+    let errorMessage = 'เข้าสู่ระบบไม่สำเร็จ กรุณาลองใหม่อีกครั้ง';
+    
+    if (error.response?.data?.message) {
+      errorMessage = error.response.data.message;
+    } else if (error.message) {
+      errorMessage = error.message;
     }
-  };
+    
+    Alert.alert('เข้าสู่ระบบไม่สำเร็จ', errorMessage);
+  } finally {
+    setLoading(false);
+  }
+};
 
   return (
     <KeyboardAvoidingView

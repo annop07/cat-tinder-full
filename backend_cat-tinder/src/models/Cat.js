@@ -3,7 +3,6 @@ const mongoose = require('mongoose');
 const catSchema = new mongoose.Schema({
   ownerId: { type: mongoose.Schema.Types.ObjectId, ref: 'Owner', required: true, index: true },
 
-  // Basic info
   name: { type: String, required: true, trim: true },
   gender: { type: String, enum: ['male', 'female'], required: true, index: true },
   ageYears: { type: Number, min: 0, default: 0 },
@@ -11,29 +10,23 @@ const catSchema = new mongoose.Schema({
   breed: { type: String, required: true },
   color: String,
 
-  // Traits (นิสัย) - multiple selection
   traits: [{
     type: String,
     enum: ['playful', 'calm', 'friendly', 'shy', 'affectionate', 'independent', 'vocal', 'quiet']
   }],
 
-  // Photos (1-5 images)
   photos: [{
     url: { type: String, required: true },
     publicId: String
   }],
 
-  // Breeding status
   readyForBreeding: { type: Boolean, default: true },
 
-  // Health info
   vaccinated: { type: Boolean, default: false },
   neutered: { type: Boolean, default: false },
 
-  // Additional notes
   notes: String,
 
-  // Location (copied from owner, can be updated)
   location: {
     province: { type: String, default: '' },
     district: String,
@@ -41,7 +34,6 @@ const catSchema = new mongoose.Schema({
     lng: { type: Number, default: 0 }
   },
 
-  // Active status
   active: { type: Boolean, default: true, index: true },
 }, { timestamps: true });
 

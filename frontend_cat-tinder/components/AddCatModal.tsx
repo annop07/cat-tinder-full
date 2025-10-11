@@ -5,20 +5,15 @@ import {
   ScrollView,
   TouchableOpacity,
   Alert,
-  KeyboardAvoidingView,
-  Platform,
-  Image,
   Modal,
+  Image,
   ActivityIndicator,
-  TextInput,
+  Platform,
+  KeyboardAvoidingView,
 } from 'react-native';
-import { useRouter, Redirect } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
-import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
-import { STORAGE_KEYS, API_URL } from '@/constants/config';
 import ThaiInput from '@/components/ThaiInput';
 import PinkButton from '@/components/PinkButton';
 import { catAPI } from '@/services/api';
@@ -49,9 +44,13 @@ const CAT_BREEDS = [
   'อื่นๆ',
 ];
 
-export default function AddCat() {
-  const router = useRouter();
-  const { user, loading: authLoading, isAuthenticated } = useAuth();
+interface AddCatModalProps {
+  visible: boolean;
+  onClose: () => void;
+  onSuccess: () => void;
+}
+
+export default function AddCatModal({ visible, onClose, onSuccess }: AddCatModalProps) {
   const { colors, isDark } = useTheme();
 
   // Progress step (1-4)
@@ -71,6 +70,7 @@ export default function AddCat() {
   const [loading, setLoading] = useState(false);
   const [showBreedModal, setShowBreedModal] = useState(false);
 
+
   const [errors, setErrors] = useState({
     name: '',
     gender: '',
@@ -78,21 +78,74 @@ export default function AddCat() {
     photos: '',
   });
 
-  const pickImage = async () => {
-    if (photos.length >= 5) {
-      Alert.alert('ไม่สามารถเพิ่มรูปได้', 'สามารถเพิ่มรูปได้สูงสุด 5 รูป');
-      return;
+  const resetForm = () => {
+    setCurrentStep(1);
+    setName('');
+    setGender('');
+    setAgeYears('0');
+    setAgeMonths('0');
+    setBreed('');
+    setCustomBreed('');
+    setColor('');
+    setTraits([]);
+    setPhotos([]);
+    setVaccinated(false);
+    setNotes('');
+    setErrors({ name: '', gender: '', breed: '', photos: '' });
+  };
+
+  const handleClose = () => {
+    if (currentStep > 1 || photos.length > 0 || name.trim()) {
+      Alert.alert(
+        'ยืนยันการออก',
+        'การเปลี่ยนแปลงจะไม่ถูกบันทึก คุณต้องการออกหรือไม่?',
+        [
+          { text: 'ยกเลิก', style: 'cancel' },
+          {
+            text: 'ออก',
+            style: 'destructive',
+            onPress: () => {
+              resetForm();
+              onClose();
+            }
+          }
+        ]
+      );
+    } else {
+      resetForm();
+      onClose();
     }
+  };
 
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: true,
-      aspect: [4, 3],
-      quality: 0.8,
-    });
+  const pickImage = async () => {
+    try {
+      if (photos.length >= 5) {
+        Alert.alert('ไม่สามารถเพิ่มรูปได้', 'สามารถเพิ่มรูปได้สูงสุด 5 รูป');
+        return;
+      }
 
-    if (!result.canceled && result.assets[0]) {
-      setPhotos([...photos, result.assets[0].uri]);
+      // Request permissions first
+      const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
+
+      if (permissionResult.granted === false) {
+        Alert.alert('สิทธิ์การเข้าถึง', 'กรุณาอนุญาตการเข้าถึงแกลเลอรี่เพื่อเพิ่มรูปภาพ');
+        return;
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [4, 3],
+        quality: 0.8,
+        allowsMultipleSelection: false,
+      });
+
+      if (!result.canceled && result.assets && result.assets[0]) {
+        setPhotos([...photos, result.assets[0].uri]);
+      }
+    } catch (error) {
+      console.error('Error picking image:', error);
+      Alert.alert('เกิดข้อผิดพลาด', 'ไม่สามารถเลือกรูปภาพได้ กรุณาลองใหม่อีกครั้ง');
     }
   };
 
@@ -116,12 +169,12 @@ export default function AddCat() {
     }
   };
 
+
   const validateStep = (step: number) => {
     const newErrors = { name: '', gender: '', breed: '', photos: '' };
     let isValid = true;
 
     if (step === 1) {
-      // Step 1: Photos
       if (photos.length === 0) {
         newErrors.photos = 'กรุณาเพิ่มรูปภาพอย่างน้อย 1 รูป';
         isValid = false;
@@ -129,7 +182,6 @@ export default function AddCat() {
     }
 
     if (step === 2) {
-      // Step 2: Basic info
       if (!name.trim()) {
         newErrors.name = 'กรุณากรอกชื่อแมว';
         isValid = false;
@@ -142,7 +194,6 @@ export default function AddCat() {
     }
 
     if (step === 3) {
-      // Step 3: Breed
       if (!breed) {
         newErrors.breed = 'กรุณาเลือกสายพันธุ์';
         isValid = false;
@@ -171,11 +222,9 @@ export default function AddCat() {
 
     setLoading(true);
     try {
-      // ✅ แก้ไข: ไม่ต้องเช็ค token ใน component - API service จัดการแล้ว
       console.log('🔄 Submitting cat data...');
       console.log('📷 Photos count:', photos.length);
 
-      // ✅ แก้ไข: สร้าง FormData ที่ถูกต้อง
       const formData = new FormData();
       formData.append('name', name.trim());
       formData.append('gender', gender);
@@ -187,7 +236,6 @@ export default function AddCat() {
 
       if (color) formData.append('color', color.trim());
 
-      // Send traits as individual fields
       traits.forEach((trait) => {
         formData.append('traits', trait);
       });
@@ -195,11 +243,8 @@ export default function AddCat() {
       formData.append('vaccinated', String(vaccinated));
       if (notes) formData.append('notes', notes.trim());
 
-      // ✅ แก้ไข: Photo handling for React Native
       for (let i = 0; i < photos.length; i++) {
         const photoUri = photos[i];
-
-        // สร้าง filename
         const timestamp = Date.now();
         const filename = `cat_${timestamp}_${i}.jpg`;
 
@@ -213,13 +258,23 @@ export default function AddCat() {
         console.log(`📷 Added photo ${i + 1}:`, filename);
       }
 
-      // ✅ เรียก API
       const response = await catAPI.createCat(formData);
       console.log('✅ Cat created successfully:', response);
 
-      // ✅ Navigate ไปหน้า home
-      console.log('🏠 Navigating to home...');
-      router.replace('/(tabs)/home');
+      Alert.alert(
+        'สำเร็จ!',
+        'เพิ่มข้อมูลแมวเรียบร้อยแล้ว',
+        [
+          {
+            text: 'ตกลง',
+            onPress: () => {
+              resetForm();
+              onClose();
+              onSuccess();
+            }
+          }
+        ]
+      );
 
     } catch (error: any) {
       console.error('❌ Add cat error:', error);
@@ -238,25 +293,24 @@ export default function AddCat() {
     }
   };
 
-  // Progress Indicator Component
   const ProgressIndicator = () => (
-    <View className="flex-row justify-between items-center mb-8">
+    <View className="flex-row justify-between items-center mb-6">
       {[1, 2, 3, 4].map((step, index) => (
         <React.Fragment key={step}>
           <View className="items-center flex-1">
             <View
               className="rounded-full items-center justify-center"
               style={{
-                width: 40,
-                height: 40,
+                width: 32,
+                height: 32,
                 backgroundColor: step <= currentStep ? colors.primary : colors.border,
               }}
             >
               {step < currentStep ? (
-                <Ionicons name="checkmark" size={24} color="white" />
+                <Ionicons name="checkmark" size={20} color="white" />
               ) : (
                 <Text
-                  className="font-bold text-base"
+                  className="font-bold text-sm"
                   style={{
                     color: step <= currentStep ? 'white' : colors.textSecondary,
                   }}
@@ -266,7 +320,7 @@ export default function AddCat() {
               )}
             </View>
             <Text
-              className="text-xs mt-2 text-center"
+              className="text-xs mt-1 text-center"
               style={{
                 color: step <= currentStep ? colors.primary : colors.textSecondary,
                 fontWeight: step === currentStep ? 'bold' : 'normal',
@@ -280,7 +334,7 @@ export default function AddCat() {
               className="h-0.5 flex-1 mx-2"
               style={{
                 backgroundColor: step < currentStep ? colors.primary : colors.border,
-                marginTop: -20,
+                marginTop: -16,
               }}
             />
           )}
@@ -318,7 +372,7 @@ export default function AddCat() {
                   <View key={index} className="relative" style={{ overflow: 'visible' }}>
                     <Image
                       source={{ uri: photo }}
-                      style={{ width: 120, height: 120 }}
+                      style={{ width: 100, height: 100 }}
                       className="rounded-xl"
                     />
                     <TouchableOpacity
@@ -328,8 +382,8 @@ export default function AddCat() {
                         top: -8,
                         right: -8,
                         backgroundColor: '#ef4444',
-                        width: 28,
-                        height: 28,
+                        width: 24,
+                        height: 24,
                         alignItems: 'center',
                         justifyContent: 'center',
                         shadowColor: '#000',
@@ -339,7 +393,7 @@ export default function AddCat() {
                         elevation: 5,
                       }}
                     >
-                      <Ionicons name="close" size={18} color="white" />
+                      <Ionicons name="close" size={16} color="white" />
                     </TouchableOpacity>
                   </View>
                 ))}
@@ -348,14 +402,14 @@ export default function AddCat() {
                     onPress={pickImage}
                     className="items-center justify-center rounded-xl border-2 border-dashed"
                     style={{
-                      width: 120,
-                      height: 120,
+                      width: 100,
+                      height: 100,
                       borderColor: colors.border,
                       backgroundColor: colors.surface,
                     }}
                   >
-                    <Ionicons name="camera" size={36} color={colors.primary} />
-                    <Text style={{ color: colors.textSecondary }} className="text-xs mt-2">
+                    <Ionicons name="camera" size={32} color={colors.primary} />
+                    <Text style={{ color: colors.textSecondary }} className="text-xs mt-1">
                       เพิ่มรูป
                     </Text>
                   </TouchableOpacity>
@@ -384,7 +438,6 @@ export default function AddCat() {
               error={errors.name}
             />
 
-            {/* Gender Selection */}
             <View className="mb-4">
               <Text style={{ color: colors.text }} className="text-sm font-medium mb-2">
                 เพศ *
@@ -392,14 +445,14 @@ export default function AddCat() {
               <View className="flex-row gap-3">
                 <TouchableOpacity
                   onPress={() => setGender('male')}
-                  className="flex-1 py-4 rounded-xl border-2"
+                  className="flex-1 py-3 rounded-xl border-2"
                   style={{
                     borderColor: gender === 'male' ? colors.primary : colors.border,
                     backgroundColor: gender === 'male' ? colors.primary + '10' : colors.surface,
                   }}
                 >
                   <Text
-                    className="text-center font-medium text-lg"
+                    className="text-center font-medium"
                     style={{ color: gender === 'male' ? colors.primary : colors.text }}
                   >
                     ♂️ เพศผู้
@@ -407,14 +460,14 @@ export default function AddCat() {
                 </TouchableOpacity>
                 <TouchableOpacity
                   onPress={() => setGender('female')}
-                  className="flex-1 py-4 rounded-xl border-2"
+                  className="flex-1 py-3 rounded-xl border-2"
                   style={{
                     borderColor: gender === 'female' ? colors.primary : colors.border,
                     backgroundColor: gender === 'female' ? colors.primary + '10' : colors.surface,
                   }}
                 >
                   <Text
-                    className="text-center font-medium text-lg"
+                    className="text-center font-medium"
                     style={{ color: gender === 'female' ? colors.primary : colors.text }}
                   >
                     ♀️ เพศเมีย
@@ -428,7 +481,6 @@ export default function AddCat() {
               )}
             </View>
 
-            {/* Age */}
             <View className="flex-row gap-3 mb-4">
               <View className="flex-1">
                 <ThaiInput
@@ -455,7 +507,6 @@ export default function AddCat() {
       case 3:
         return (
           <View>
-            {/* Breed Dropdown */}
             <View className="mb-4">
               <Text style={{ color: colors.text }} className="text-sm font-medium mb-2">
                 สายพันธุ์ *
@@ -501,26 +552,25 @@ export default function AddCat() {
               placeholder="เช่น ขาว, ส้ม, ดำ"
             />
 
-            {/* Vaccinated */}
             <View className="mb-4">
               <Text style={{ color: colors.text }} className="text-sm font-medium mb-2">
                 สุขภาพ
               </Text>
               <TouchableOpacity
                 onPress={() => setVaccinated(!vaccinated)}
-                className="flex-row items-center py-4 px-4 rounded-xl"
+                className="flex-row items-center py-3 px-4 rounded-xl"
                 style={{ backgroundColor: colors.surface }}
               >
                 <View
-                  className="w-6 h-6 rounded border-2 items-center justify-center mr-3"
+                  className="w-5 h-5 rounded border-2 items-center justify-center mr-3"
                   style={{
                     borderColor: vaccinated ? colors.primary : colors.border,
                     backgroundColor: vaccinated ? colors.primary : 'transparent',
                   }}
                 >
-                  {vaccinated && <Ionicons name="checkmark" size={18} color="white" />}
+                  {vaccinated && <Ionicons name="checkmark" size={16} color="white" />}
                 </View>
-                <Text style={{ color: colors.text }} className="text-base">
+                <Text style={{ color: colors.text }} className="text-sm">
                   ฉีดวัคซีนแล้ว
                 </Text>
               </TouchableOpacity>
@@ -531,7 +581,6 @@ export default function AddCat() {
       case 4:
         return (
           <View>
-            {/* Traits */}
             <View className="mb-4">
               <Text style={{ color: colors.text }} className="text-sm font-medium mb-2">
                 นิสัย (เลือกได้หลายอย่าง)
@@ -541,7 +590,7 @@ export default function AddCat() {
                   <TouchableOpacity
                     key={trait.value}
                     onPress={() => toggleTrait(trait.value)}
-                    className="px-4 py-2 rounded-full border-2"
+                    className="px-3 py-2 rounded-full border-2"
                     style={{
                       borderColor: traits.includes(trait.value) ? colors.primary : colors.border,
                       backgroundColor: traits.includes(trait.value)
@@ -578,177 +627,147 @@ export default function AddCat() {
     }
   };
 
-  // แสดง loading ถ้า auth ยังไม่เสร็จ
-  if (authLoading) {
-    return (
-      <View
-        className="flex-1 justify-center items-center"
+  return (
+    <Modal
+      visible={visible}
+      animationType="slide"
+      presentationStyle="pageSheet"
+      onRequestClose={handleClose}
+    >
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        className="flex-1"
         style={{ backgroundColor: isDark ? '#1a1a1a' : '#FFFFFF' }}
       >
-        <ActivityIndicator size="large" color={colors.primary} />
-        <Text style={{ color: colors.text, marginTop: 16 }}>กำลังโหลด...</Text>
-      </View>
-    );
-  }
+        {/* Header */}
+        <View
+          className="flex-row items-center justify-between px-6 py-4 border-b"
+          style={{ borderBottomColor: colors.border }}
+        >
+          <TouchableOpacity onPress={handleClose}>
+            <Ionicons name="close" size={28} color={colors.text} />
+          </TouchableOpacity>
+          <Text style={{ color: colors.text }} className="text-lg font-bold">
+            เพิ่มข้อมูลแมว
+          </Text>
+          <View style={{ width: 28 }} />
+        </View>
 
-  // ถ้ายังไม่ได้ login ให้ไป login
-  if (!isAuthenticated) {
-    return <Redirect href="/(auth)/login" />;
-  }
-
-  return (
-    <KeyboardAvoidingView
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      className="flex-1"
-      style={{ backgroundColor: isDark ? '#1a1a1a' : '#FFFFFF' }}
-    >
-      <ScrollView
-        className="flex-1"
-        contentContainerStyle={{ paddingVertical: 48 }}
-        showsVerticalScrollIndicator={false}
-      >
-        <View className="px-6">
-          {/* Header */}
-          <View className="items-center mb-8">
+        {/* Main Content or Breed Selection */}
+        {!showBreedModal ? (
+          <ScrollView
+            className="flex-1"
+            contentContainerStyle={{ padding: 24 }}
+            showsVerticalScrollIndicator={false}
+          >
             <View
-              className="mb-4 p-4 rounded-full"
+              className="rounded-3xl p-6"
               style={{
-                backgroundColor: colors.primary + '20',
+                backgroundColor: isDark ? '#2a2a2a' : 'white',
+                shadowColor: '#000',
+                shadowOffset: { width: 0, height: 4 },
+                shadowOpacity: 0.1,
+                shadowRadius: 12,
+                elevation: 5,
               }}
             >
-              <Ionicons name="paw" size={48} color={colors.primary} />
-            </View>
-            <Text
-              style={{ color: colors.text }}
-              className="text-3xl font-bold mb-2"
-            >
-              เพิ่มข้อมูลแมวของคุณ
-            </Text>
-            <Text
-              style={{ color: colors.textSecondary }}
-              className="text-sm text-center"
-            >
-              กรอกข้อมูลแมวเพื่อเริ่มหาคู่
-            </Text>
-          </View>
+              <ProgressIndicator />
 
-          {/* Form Card */}
-          <View
-            className="rounded-3xl p-6 mb-6"
-            style={{
-              backgroundColor: isDark ? '#2a2a2a' : 'white',
-              shadowColor: '#000',
-              shadowOffset: { width: 0, height: 4 },
-              shadowOpacity: 0.1,
-              shadowRadius: 12,
-              elevation: 5,
-            }}
-          >
-            {/* Progress Indicator */}
-            <ProgressIndicator />
-
-            {/* Step Title */}
-            <View className="flex-row items-center mb-6">
-              <View
-                className="mr-3 p-2 rounded-xl"
-                style={{ backgroundColor: colors.primary + '20' }}
-              >
-                <Ionicons
-                  name={
-                    currentStep === 1
-                      ? 'images-outline'
-                      : currentStep === 2
-                        ? 'information-circle-outline'
-                        : currentStep === 3
-                          ? 'paw-outline'
-                          : 'heart-outline'
-                  }
-                  size={24}
-                  color={colors.primary}
-                />
-              </View>
-              <View className="flex-1">
-                <Text style={{ color: colors.text }} className="text-xl font-bold">
-                  {getStepTitle()}
-                </Text>
-                <Text style={{ color: colors.textSecondary }} className="text-sm">
-                  ขั้นตอนที่ {currentStep} จาก 4
-                </Text>
-              </View>
-            </View>
-
-            {/* Form Fields */}
-            {renderStepContent()}
-
-            {/* Buttons */}
-            <View className="flex-row gap-3 mt-6">
-              {currentStep > 1 && (
-                <View className="flex-1">
-                  <PinkButton
-                    title="ย้อนกลับ"
-                    onPress={handleBack}
-                    size="large"
-                    variant="outline"
+              <View className="flex-row items-center mb-6">
+                <View
+                  className="mr-3 p-2 rounded-xl"
+                  style={{ backgroundColor: colors.primary + '20' }}
+                >
+                  <Ionicons
+                    name={
+                      currentStep === 1
+                        ? 'images-outline'
+                        : currentStep === 2
+                          ? 'information-circle-outline'
+                          : currentStep === 3
+                            ? 'paw-outline'
+                            : 'heart-outline'
+                    }
+                    size={20}
+                    color={colors.primary}
                   />
                 </View>
-              )}
-              <View className={currentStep > 1 ? 'flex-1' : 'flex-1'}>
-                {currentStep < 4 ? (
-                  <PinkButton
-                    title="ถัดไป"
-                    onPress={handleNext}
-                    size="large"
-                    variant="gradient"
-                  />
-                ) : (
-                  <PinkButton
-                    title="เพิ่มข้อมูลแมว"
-                    onPress={handleSubmit}
-                    loading={loading}
-                    size="large"
-                    variant="gradient"
-                  />
+                <View className="flex-1">
+                  <Text style={{ color: colors.text }} className="text-lg font-bold">
+                    {getStepTitle()}
+                  </Text>
+                  <Text style={{ color: colors.textSecondary }} className="text-sm">
+                    ขั้นตอนที่ {currentStep} จาก 4
+                  </Text>
+                </View>
+              </View>
+
+              {renderStepContent()}
+
+              <View className="flex-row gap-3 mt-6">
+                {currentStep > 1 && (
+                  <View className="flex-1">
+                    <PinkButton
+                      title="ย้อนกลับ"
+                      onPress={handleBack}
+                      size="medium"
+                      variant="outline"
+                    />
+                  </View>
                 )}
+                <View className={currentStep > 1 ? 'flex-1' : 'flex-1'}>
+                  {currentStep < 4 ? (
+                    <PinkButton
+                      title="ถัดไป"
+                      onPress={handleNext}
+                      size="medium"
+                      variant="gradient"
+                    />
+                  ) : (
+                    <PinkButton
+                      title="เพิ่มข้อมูลแมว"
+                      onPress={handleSubmit}
+                      loading={loading}
+                      size="medium"
+                      variant="gradient"
+                    />
+                  )}
+                </View>
               </View>
             </View>
-          </View>
-        </View>
-      </ScrollView>
-
-      {/* Breed Selection Modal */}
-      <Modal
-        visible={showBreedModal}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setShowBreedModal(false)}
-      >
-        <View
-          className="flex-1 justify-end"
-          style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}
-        >
-          <View
-            className="rounded-t-3xl p-6"
-            style={{
-              backgroundColor: isDark ? '#2a2a2a' : 'white',
-              maxHeight: '70%',
-            }}
-          >
-            <View className="flex-row items-center justify-between mb-4">
-              <Text style={{ color: colors.text }} className="text-xl font-bold">
+          </ScrollView>
+        ) : (
+          /* Breed Selection View */
+          <View className="flex-1" style={{ backgroundColor: isDark ? '#1a1a1a' : '#FFFFFF' }}>
+            {/* Breed Selection Header */}
+            <View
+              className="flex-row items-center justify-between px-6 py-4 border-b"
+              style={{ borderBottomColor: colors.border }}
+            >
+              <TouchableOpacity onPress={() => setShowBreedModal(false)}>
+                <Ionicons name="arrow-back" size={28} color={colors.text} />
+              </TouchableOpacity>
+              <Text style={{ color: colors.text }} className="text-lg font-bold">
                 เลือกสายพันธุ์
               </Text>
-              <TouchableOpacity onPress={() => setShowBreedModal(false)}>
-                <Ionicons name="close" size={28} color={colors.text} />
-              </TouchableOpacity>
+              <View style={{ width: 28 }} />
             </View>
-            <ScrollView showsVerticalScrollIndicator={false}>
+
+            {/* Breed Options */}
+            <ScrollView
+              className="flex-1"
+              contentContainerStyle={{ padding: 24 }}
+              showsVerticalScrollIndicator={false}
+            >
               {CAT_BREEDS.map((breedOption) => (
                 <TouchableOpacity
                   key={breedOption}
                   onPress={() => selectBreed(breedOption)}
-                  className="py-4 px-4 mb-2 rounded-xl flex-row items-center justify-between"
+                  className="py-4 px-4 mb-3 rounded-xl flex-row items-center justify-between"
                   style={{
                     backgroundColor: breed === breedOption ? colors.primary + '20' : colors.surface,
+                    borderWidth: breed === breedOption ? 2 : 1,
+                    borderColor: breed === breedOption ? colors.primary : colors.border,
                   }}
                 >
                   <Text
@@ -767,8 +786,8 @@ export default function AddCat() {
               ))}
             </ScrollView>
           </View>
-        </View>
-      </Modal>
-    </KeyboardAvoidingView>
+        )}
+      </KeyboardAvoidingView>
+    </Modal>
   );
 }

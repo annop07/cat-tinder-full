@@ -1,4 +1,5 @@
-import axios from 'axios';
+// services/api.ts - แก้ไขการ import และ response interceptor
+import axios, { AxiosResponse } from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { API_URL, STORAGE_KEYS } from '../constants/config';
 
@@ -11,7 +12,7 @@ const api = axios.create({
   },
 });
 
-// Request interceptor - @4H! JWT token
+// Request interceptor - เพิ่ม JWT token
 api.interceptors.request.use(
   async (config) => {
     try {
@@ -19,7 +20,7 @@ api.interceptors.request.use(
       if (token) {
         config.headers.Authorization = `Bearer ${token}`;
       }
-      console.log(`=� ${config.method?.toUpperCase()} ${config.url}`);
+      console.log(`🚀 ${config.method?.toUpperCase()} ${config.url}`);
       return config;
     } catch (error) {
       console.error('Error in request interceptor:', error);
@@ -29,66 +30,74 @@ api.interceptors.request.use(
   (error) => Promise.reject(error)
 );
 
-// Response interceptor - 12# error
+// Response interceptor - ✅ แก้ไขให้ชัดเจน
 api.interceptors.response.use(
-  (response) => {
-    console.log(`=� ${response.status} ${response.config.url}`);
+  (response: AxiosResponse) => {
+    console.log(`✅ ${response.status} ${response.config.url}`);
+    console.log('📨 Response data:', response.data);
+    
+    // ✅ return เฉพาะ response.data เพื่อให้ได้โครงสร้างจาก backend API
     return response.data;
   },
   async (error) => {
     if (error.response?.status === 401) {
-      // Token expired - %I2 storage
+      console.log('🔐 Unauthorized - clearing tokens');
       await AsyncStorage.multiRemove([STORAGE_KEYS.TOKEN, STORAGE_KEYS.USER_ID]);
     }
-    console.error(`L ${error.response?.status} ${error.config?.url}`, error.response?.data);
+    
+    console.error(`❌ ${error.response?.status || 'Network Error'} ${error.config?.url}`, 
+      error.response?.data || error.message);
+    
     return Promise.reject(error);
   }
 );
 
 // ========================================
-// Authentication API
+// Authentication API with proper typing
 // ========================================
 
 export const authAPI = {
-  register: (data: {
+  register: async (data: {
     email: string;
     password: string;
-    firstName: string;
-    lastName: string;
-    displayName: string;
+    username: string;
     phone?: string;
     location: {
       province: string;
       lat: number;
       lng: number;
     };
-  }) => api.post('/auth/register', data, {
-    headers: {
-      Authorization: '', // Don't send token for register
-    },
-  }),
+  }) => {
+    console.log('📤 Registering user:', data.email);
+    // ✅ Cast เป็น any เพื่อหลีกเลี่ยง TypeScript issues
+    return api.post('/auth/register', data) as Promise<any>;
+  },
 
-  login: (data: { email: string; password: string }) =>
-    api.post('/auth/login', data, {
-      headers: {
-        Authorization: '', // Don't send token for login
-      },
-    }),
+  login: async (data: { email: string; password: string }) => {
+    console.log('📤 Logging in user:', data.email);
+    return api.post('/auth/login', data) as Promise<any>;
+  },
 
-  getCurrentUser: () => api.get('/auth/me'),
+  getCurrentUser: async () => {
+    console.log('📤 Getting current user');
+    return api.get('/auth/me') as Promise<any>;
+  },
+
+  logout: async () => {
+    console.log('📤 Logging out user');
+    return api.post('/auth/logout') as Promise<any>;
+  },
 };
 
 // ========================================
-// Owner API
+// Other APIs...
 // ========================================
 
 export const ownerAPI = {
-  getProfile: () => api.get('/owners/profile'),
+  getProfile: () => api.get('/owners/profile') as Promise<any>,
 
   updateProfile: (data: {
-    firstName?: string;
-    lastName?: string;
-    displayName?: string;
+    username?: string;
     phone?: string;
     location?: {
       province: string;
@@ -96,84 +105,68 @@ export const ownerAPI = {
       lat: number;
       lng: number;
     };
-  }) => api.put('/owners/profile', data),
+  }) => api.put('/owners/profile', data) as Promise<any>,
 
-  completeOnboarding: (data: any) => api.post('/owners/onboarding', data),
+  completeOnboarding: (data: any) => api.post('/owners/onboarding', data) as Promise<any>,
 };
 
-// ========================================
-// Cat API
-// ========================================
-
 export const catAPI = {
-  getFeed: (params?: { catId?: string; limit?: number }) =>
-    api.get('/cats/feed', { params }),
+  getFeed: (params?: { catId?: string; limit?: number }) => {
+    console.log('📤 Getting cat feed with params:', params);
+    return api.get('/cats/feed', { params }) as Promise<any>;
+  },
 
-  getMyCats: () => api.get('/cats/my-cats'),
+  getMyCats: () => api.get('/cats/my-cats') as Promise<any>,
 
-  getCat: (id: string) => api.get(`/cats/${id}`),
+  getCat: (id: string) => api.get(`/cats/${id}`) as Promise<any>,
 
-  createCat: (data: FormData) =>
-    api.post('/cats', data, {
+  createCat: (data: FormData) => {
+    console.log('📤 Creating cat with FormData');
+    return api.post('/cats', data, {
       headers: { 'Content-Type': 'multipart/form-data' },
-    }),
+    }) as Promise<any>;
+  },
 
   updateCat: (id: string, data: FormData) =>
     api.put(`/cats/${id}`, data, {
       headers: { 'Content-Type': 'multipart/form-data' },
-    }),
+    }) as Promise<any>,
 
-  deleteCat: (id: string) => api.delete(`/cats/${id}`),
+  deleteCat: (id: string) => api.delete(`/cats/${id}`) as Promise<any>,
 };
-
-// ========================================
-// Swipe API
-// ========================================
 
 export const swipeAPI = {
   createSwipe: (data: {
     swiperCatId: string;
     targetCatId: string;
     action: 'like' | 'pass';
-  }) => api.post('/swipes', data),
+  }) => {
+    console.log('📤 Creating swipe:', data.action);
+    return api.post('/swipes', data) as Promise<any>;
+  },
 
-  getLikesSent: (catId: string) => api.get(`/swipes/likes-sent/${catId}`),
+  getLikesSent: (catId: string) => api.get(`/swipes/likes-sent/${catId}`) as Promise<any>,
 
-  getLikesReceived: (catId: string) => api.get(`/swipes/likes-received/${catId}`),
+  getLikesReceived: (catId: string) => api.get(`/swipes/likes-received/${catId}`) as Promise<any>,
 };
-
-// ========================================
-// Match API
-// ========================================
 
 export const matchAPI = {
   getMatches: (params?: { limit?: number; skip?: number }) =>
-    api.get('/matches', { params }),
+    api.get('/matches', { params }) as Promise<any>,
 
-  getMatch: (id: string) => api.get(`/matches/${id}`),
+  getMatch: (id: string) => api.get(`/matches/${id}`) as Promise<any>,
 
-  deleteMatch: (id: string) => api.delete(`/matches/${id}`),
+  deleteMatch: (id: string) => api.delete(`/matches/${id}`) as Promise<any>,
 };
-
-// ========================================
-// Message API
-// ========================================
 
 export const messageAPI = {
   getMessages: (matchId: string, params?: { limit?: number; before?: string }) =>
-    api.get(`/messages/${matchId}`, { params }),
+    api.get(`/messages/${matchId}`, { params }) as Promise<any>,
 
   sendMessage: (data: { matchId: string; text: string }) =>
-    api.post('/messages', data),
+    api.post('/messages', data) as Promise<any>,
 
-  markAsRead: (matchId: string) => api.put(`/messages/${matchId}/read`),
+  markAsRead: (matchId: string) => api.put(`/messages/${matchId}/read`) as Promise<any>,
 };
-
-// Export aliases for compatibility
-export const catsApi = catAPI;
-export const swipesApi = swipeAPI;
-export const matchesApi = matchAPI;
-export const messagesApi = messageAPI;
-export const ownersApi = ownerAPI;
 
 export default api;

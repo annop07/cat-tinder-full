@@ -1,3 +1,4 @@
+// app/(tabs)/home.tsx - แก้ไข default export
 import React, { useState, useEffect } from 'react';
 import {
   View,
@@ -5,8 +6,8 @@ import {
   ActivityIndicator,
   Alert,
   TouchableOpacity,
-  SafeAreaView,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context'; // ✅ แก้ไข import
 import { useRouter } from 'expo-router';
 import { useTheme } from '@/contexts/ThemeContext';
 import { catAPI, swipeAPI } from '@/services/api';
@@ -14,7 +15,7 @@ import { Cat, Match, CatFeedResponse, SwipeResponse } from '@/types';
 import SwipeableCard from '@/components/SwipeableCard';
 import MatchModal from '@/components/MatchModal';
 
-export default function HomeScreen() {
+function HomeScreen() {
   const { colors } = useTheme();
   const router = useRouter();
 
@@ -32,13 +33,20 @@ export default function HomeScreen() {
   const loadCatFeed = async () => {
     try {
       setLoading(true);
-      const response = await catAPI.getFeed({ limit: 20 }) as unknown as CatFeedResponse;
+      console.log('🔄 Loading cat feed...');
+      
+      const response = await catAPI.getFeed({ limit: 20 });
+      console.log('📨 Cat feed response:', response);
 
-      if (response.status === 'ok' && response.data) {
-        setCats(response.data.cats || []);
-        setMyCatId(response.data.myCatId);
-      } else if (response.status === 'error') {
-        // User might not have added a cat yet
+      // Extract cats data
+      if (response && response.status === 'ok' && response.data) {
+        const { cats = [], myCatId } = response.data;
+        console.log(`✅ Loaded ${cats.length} cats, myCatId:`, myCatId);
+        
+        setCats(cats);
+        setMyCatId(myCatId);
+      } else if (response && response.status === 'error') {
+        console.log('❌ API Error:', response.message);
         Alert.alert(
           'เพิ่มแมวของคุณ',
           response.message || 'คุณต้องเพิ่มโปรไฟล์แมวก่อนเริ่มหาคู่',
@@ -52,9 +60,9 @@ export default function HomeScreen() {
         );
       }
     } catch (error: any) {
-      console.error('Load cat feed error:', error);
+      console.error('❌ Load cat feed error:', error);
+      
       if (error.response && error.response.status === 404) {
-        // No cats available
         Alert.alert(
           'เพิ่มแมวของคุณ',
           error.response?.data?.message || 'คุณต้องเพิ่มโปรไฟล์แมวก่อนเริ่มหาคู่',
@@ -67,7 +75,17 @@ export default function HomeScreen() {
           ]
         );
       } else {
-        Alert.alert('ข้อผิดพลาด', 'ไม่สามารถโหลดข้อมูลได้ กรุณาลองใหม่อีกครั้ง');
+        Alert.alert(
+          'ข้อผิดพลาด', 
+          'ไม่สามารถโหลดข้อมูลได้ กรุณาตรวจสอบการเชื่อมต่อ',
+          [
+            {
+              text: 'ลองใหม่',
+              onPress: () => loadCatFeed(),
+            },
+            { text: 'ภายหลัง', style: 'cancel' },
+          ]
+        );
       }
     } finally {
       setLoading(false);
@@ -81,15 +99,17 @@ export default function HomeScreen() {
     }
 
     try {
+      console.log(`🔄 Swiping ${action} on cat:`, targetCatId);
       const response = await swipeAPI.createSwipe({
         swiperCatId: myCatId,
         targetCatId,
         action,
-      }) as unknown as SwipeResponse;
+      });
 
-      if (response.status === 'ok' && response.data) {
+      if (response && response.status === 'ok' && response.data) {
         // Check if it's a match
         if (response.data.matched && response.data.match) {
+          console.log('💕 Match found!');
           setCurrentMatch(response.data.match);
           setShowMatchModal(true);
         }
@@ -103,7 +123,7 @@ export default function HomeScreen() {
         }
       }
     } catch (error: any) {
-      console.error('Swipe error:', error);
+      console.error('❌ Swipe error:', error);
       Alert.alert('ข้อผิดพลาด', 'ไม่สามารถบันทึกการ swipe ได้');
     }
   };
@@ -124,12 +144,13 @@ export default function HomeScreen() {
 
   const loadMoreCats = async () => {
     try {
-      const response = await catAPI.getFeed({ limit: 10 }) as unknown as CatFeedResponse;
-      if (response.status === 'ok' && response.data) {
+      console.log('🔄 Loading more cats...');
+      const response = await catAPI.getFeed({ limit: 10 });
+      if (response && response.status === 'ok' && response.data) {
         setCats((prev) => [...prev, ...(response.data?.cats || [])]);
       }
     } catch (error) {
-      console.error('Load more cats error:', error);
+      console.error('❌ Load more cats error:', error);
     }
   };
 
@@ -140,7 +161,6 @@ export default function HomeScreen() {
 
   const handleSendMessage = () => {
     setShowMatchModal(false);
-    // Navigate to messages tab and open chat with this match
     if (currentMatch?._id) {
       router.push({
         pathname: '/(tabs)/messages',
@@ -257,3 +277,6 @@ export default function HomeScreen() {
     </SafeAreaView>
   );
 }
+
+// ✅ ต้องมี default export
+export default HomeScreen;

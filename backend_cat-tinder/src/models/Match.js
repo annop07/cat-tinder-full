@@ -1,12 +1,33 @@
 const mongoose = require('mongoose');
 
 const matchSchema = new mongoose.Schema({
-  catAId: { type: mongoose.Schema.Types.ObjectId, ref: 'Cat', required: true, index: true },
-  ownerAId: { type: mongoose.Schema.Types.ObjectId, ref: 'Owner', required: true, index: true },
-  catBId: { type: mongoose.Schema.Types.ObjectId, ref: 'Cat', required: true, index: true },
-  ownerBId: { type: mongoose.Schema.Types.ObjectId, ref: 'Owner', required: true, index: true },
-  lastMessageAt: { type: Date, default: null, index: true },
-}, { timestamps: { createdAt: true, updatedAt: false } });
+  catAId: { 
+    type: mongoose.Schema.Types.ObjectId, 
+    ref: 'Cat', 
+    required: true, 
+    index: true },
+  ownerAId: { 
+    type: mongoose.Schema.Types.ObjectId, 
+    ref: 'Owner', 
+    required: true, 
+    index: true },
+  catBId: { 
+    type: mongoose.Schema.Types.ObjectId, 
+    ref: 'Cat', 
+    required: true, 
+    index: true },
+  ownerBId: { 
+    type: mongoose.Schema.Types.ObjectId, 
+    ref: 'Owner', 
+    required: true, 
+    index: true },
+  lastMessageAt: { 
+    type: Date, 
+    default: null, 
+    index: true },
+}, { timestamps: { 
+  createdAt: true, 
+  updatedAt: false } });
 
 // กันสร้าง match ซ้ำ (ไม่สนลำดับ A/B)
 matchSchema.index(
