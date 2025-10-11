@@ -1,194 +1,144 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import axios from 'axios'; // ✅ เพิ่ม import axios
-import { Asset } from "expo-asset";
-import { useFonts } from "expo-font";
-import { Link, useRouter } from "expo-router";
-import { useEffect, useState } from "react";
-import {
-  Alert,
-  KeyboardAvoidingView,
-  Platform,
-  Pressable,
-  Text,
-  TextInput,
-  View,
-  ActivityIndicator,
-} from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
-import { SvgUri } from "react-native-svg";
+import React, { useState, useEffect } from 'react';
+import { View, Text, ScrollView, TouchableOpacity, Alert, KeyboardAvoidingView, Platform, Image } from 'react-native';
+import { useRouter } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
+import { useAuth } from '@/contexts/AuthContext';
+import { useTheme } from '@/contexts/ThemeContext';
+import ThaiInput from '@/components/ThaiInput';
+import PinkButton from '@/components/PinkButton';
 
-// ✅ แก้ไข API URL ให้ตรงกับ server
-const API_URL = "http://192.168.1.182:5000";
-
-const Login = () => {
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [logoUri, setLogoUri] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
-
+export default function LoginScreen() {
   const router = useRouter();
+  const { login, isAuthenticated } = useAuth();
+  const { colors, isDark } = useTheme();
 
-  const [fontsLoaded] = useFonts({
-    CatIcons: require("../../assets/fonts/CatIcons.ttf"),
-    PawIcons: require("../../assets/fonts/PawIcons.ttf"),
-    SUSEMono: require("../../assets/fonts/SUSEMono.ttf"),
-    Roboto: require("../../assets/fonts/Roboto.ttf"),
-  });
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [errors, setErrors] = useState({ email: '', password: '' });
 
-  useEffect(() => {
-    let isMounted = true;
-    const asset = Asset.fromModule(require("../../assets/icons/cat-logo.svg"));
+  const validate = () => {
+    const newErrors = { email: '', password: '' };
+    if (!email) newErrors.email = 'กรุณากรอกอีเมล';
+    if (!password) newErrors.password = 'กรุณากรอกรหัสผ่าน';
+    setErrors(newErrors);
+    return !newErrors.email && !newErrors.password;
+  };
 
-    const ensureAsset = async () => {
-      if (!asset.localUri) {
-        await asset.downloadAsync();
-      }
-      if (isMounted) {
-        setLogoUri(asset.localUri ?? asset.uri);
-      }
-    };
-
-    ensureAsset();
-
-    return () => {
-      isMounted = false;
-    };
-  }, []);
-
-  if (!fontsLoaded) {
-    return null;
-  }
-
-  const onLogin = async () => {
-    if (!email || !password) {
-      Alert.alert("กรอกข้อมูลไม่ครบ", "กรุณากรอกอีเมลและรหัสผ่าน");
-      return;
-    }
+  const handleLogin = async () => {
+    if (!validate()) return;
 
     setLoading(true);
-    
-    const userData = {
-      email: email.trim(),
-      password
-    };
-
     try {
-      // ✅ แก้ไข URL ให้ถูกต้อง
-      const response = await axios.post(`${API_URL}/api/auth/login`, userData);
-      
-      if (response.data.status === "ok") {
-        // เก็บ token
-        await AsyncStorage.setItem("token", response.data.data);
-        
-        // เก็บข้อมูลเพิ่มเติมถ้ามี
-        if (response.data.userId) {
-          await AsyncStorage.setItem("userId", response.data.userId);
-        }
-        
-        Alert.alert("สำเร็จ", "เข้าสู่ระบบสำเร็จ!");
-        
-        // Navigate ไปหน้า tabs
-        router.replace("./(tabs)");
-      } else {
-        Alert.alert("เกิดข้อผิดพลาด", response.data.message || "ไม่สามารถเข้าสู่ระบบได้");
-      }
+      await login(email, password);
+      router.replace('/(tabs)/home');
     } catch (error: any) {
-      console.error("Login error:", error);
-      
-      let errorMessage = "ไม่สามารถเชื่อมต่อกับเซิร์ฟเวอร์ได้";
-      
-      if (error.response) {
-        // ❌ Server ตอบกลับมาแต่มี error
-        errorMessage = error.response.data?.message || `เกิดข้อผิดพลาด: ${error.response.status}`;
-      } else if (error.request) {
-        // ❌ ส่ง request แต่ไม่ได้รับ response
-        errorMessage = "ไม่สามารถเชื่อมต่อกับเซิร์ฟเวอร์ได้ กรุณาตรวจสอบการเชื่อมต่ออินเทอร์เน็ต";
-      }
-      
-      Alert.alert("เกิดข้อผิดพลาด", errorMessage);
+      console.error('Login error:', error);
+      Alert.alert(
+        'เข้าสู่ระบบไม่สำเร็จ', 
+        error.response?.data?.message || error.message || 'กรุณาลองใหม่อีกครั้ง'
+      );
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <SafeAreaView className="flex-1 bg-pink-50">
-      <KeyboardAvoidingView
-        className="flex-1"
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
+    <KeyboardAvoidingView
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      className="flex-1"
+      style={{ backgroundColor: isDark ? '#1a1a1a' : '#FFFFFF' }}
+    >
+      <ScrollView 
+        className="flex-1" 
+        contentContainerStyle={{ flexGrow: 1 }}
+        showsVerticalScrollIndicator={false}
       >
-        <View className="flex-1 px-6 py-10">
+        <View className="flex-1 justify-center px-6 py-12">
+          {/* Logo & Brand */}
           <View className="items-center">
-            <View className="h-16 w-16 items-center justify-center rounded-full bg-pink-100 shadow-md shadow-pink-200">
-              {logoUri && <SvgUri width="48" height="48" uri={logoUri} />}
-            </View>
-            <Text className="mt-6 text-2xl font-semibold text-gray-900 font-[Roboto]">
-              Meowth
-            </Text>
-            <Text className="mt-2 w-64 text-center text-sm text-gray-500">
-              ลงชื่อเข้าใช้เพื่อค้นหาคู่ที่ลงตัวสำหรับแมวของคุณ
-            </Text>
+            <Image
+              source={require('@/assets/images/logo.png')}
+              style={{ width: 300, height: 300 }}
+              resizeMode="contain"
+            />
           </View>
 
-          <View className="mt-12 gap-5">
-            <View className="gap-2">
-              <Text className="text-sm font-medium text-gray-700">Email</Text>
-              <TextInput
-                className="h-12 rounded-2xl border border-pink-100 bg-white/90 px-4 text-base text-gray-900 shadow-sm"
-                placeholder="you@example.com"
-                placeholderTextColor="#c08497"
-                keyboardType="email-address"
-                autoCapitalize="none"
-                autoCorrect={false}
+          {/* Login Card */}
+          <View 
+            className="rounded-3xl p-8"
+            style={{ 
+              backgroundColor: isDark ? '#2a2a2a' : 'white',
+              shadowColor: '#000',
+              shadowOffset: { width: 0, height: 4 },
+              shadowOpacity: 0.1,
+              shadowRadius: 12,
+              elevation: 5,
+            }}
+          >
+            <View className="mb-4">
+              <ThaiInput
+                label="อีเมล"
                 value={email}
                 onChangeText={setEmail}
-                editable={!loading}
+                placeholder="example@email.com"
+                keyboardType="email-address"
+                autoCapitalize="none"
+                error={errors.email}
               />
             </View>
-            <View className="gap-2">
-              <Text className="text-sm font-medium text-gray-700">Password</Text>
-              <TextInput
-                className="h-12 rounded-2xl border border-pink-100 bg-white/90 px-4 text-base text-gray-900 shadow-sm"
-                placeholder="••••••••"
-                placeholderTextColor="#c08497"
-                secureTextEntry
+
+            <View className="mb-6">
+              <ThaiInput
+                label="รหัสผ่าน"
                 value={password}
                 onChangeText={setPassword}
-                editable={!loading}
+                placeholder="รหัสผ่านของคุณ"
+                secureTextEntry
+                error={errors.password}
               />
             </View>
+
+            <TouchableOpacity 
+              className="mb-6"
+              onPress={() => router.push('./(auth)/forgot-password')}
+            >
+              <Text
+                style={{ color: '#E89292' }}
+                className="text-sm text-right font-medium"
+              >
+                ลืมรหัสผ่าน?
+              </Text>
+            </TouchableOpacity>
+
+            <PinkButton
+              title="เข้าสู่ระบบ"
+              onPress={handleLogin}
+              loading={loading}
+              size="large"
+              variant="gradient"
+            />
           </View>
 
-          <View className="mt-auto">
-            <Pressable
-              className={`rounded-2xl py-3 shadow-lg shadow-pink-200 ${
-                loading ? "bg-pink-300" : "bg-pink-400"
-              }`}
-              android_ripple={{ color: "#f472b6" }}
-              onPress={onLogin}
-              disabled={loading}
+          {/* Sign Up Link */}
+          <View className="flex-row justify-center items-center mt-8">
+            <Text 
+              style={{ color: colors.textSecondary }}
+              className="text-base"
             >
-              {loading ? (
-                <ActivityIndicator color="#fff" />
-              ) : (
-                <Text className="text-center text-lg font-semibold text-white">
-                  เข้าสู่ระบบ
-                </Text>
-              )}
-            </Pressable>
-            <Text className="mt-4 text-center text-sm text-gray-500">
-              ยังไม่มีบัญชี?{" "}
-              <Link href="/(auth)/register">
-                <Text className="text-pink-500 underline font-semibold">
-                  สมัครสมาชิก
-                </Text>
-              </Link>
+              ยังไม่มีบัญชี?{' '}
             </Text>
+            <TouchableOpacity onPress={() => router.push('/(auth)/register')}>
+              <Text
+                style={{ color: '#E89292' }}
+                className="text-base font-bold"
+              >
+                ลงทะเบียน
+              </Text>
+            </TouchableOpacity>
           </View>
         </View>
-      </KeyboardAvoidingView>
-    </SafeAreaView>
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
-};
-
-export default Login;
+}

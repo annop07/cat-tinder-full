@@ -1,7 +1,7 @@
 const socketIO = require('socket.io');
 const jwt = require('jsonwebtoken');
-const Message = require('../models/messageModel');
-const Conversation = require('../models/conversationModel');
+const Message = require('../models/Message');
+const Match = require('../models/Match');
 
 let io;
 
@@ -22,15 +22,15 @@ const initializeSocket = (server) => {
   io.use(async (socket, next) => {
     try {
       const token = socket.handshake.auth.token;
-      
+
       if (!token) {
         return next(new Error('Authentication error'));
       }
 
       // Verify JWT token
       const decoded = jwt.verify(token, process.env.JWT_SECRET);
-      socket.userId = decoded.userId;
-      
+      socket.userId = decoded.id; // ใช้ 'id' ตาม JWT payload ของเรา
+
       next();
     } catch (error) {
       next(new Error('Authentication error'));
@@ -38,101 +38,105 @@ const initializeSocket = (server) => {
   });
 
   io.on('connection', (socket) => {
-    console.log(`User connected: ${socket.userId}`);
-    
+    console.log(`✅ User connected: ${socket.userId}`);
+
     // เก็บ mapping ระหว่าง userId และ socketId
     userSocketMap.set(socket.userId, socket.id);
-    
+
     // ส่งสถานะ online ให้ผู้ใช้คนอื่น
     socket.broadcast.emit('user:online', { userId: socket.userId });
 
-    // Join room สำหรับการสนทนา
-    socket.on('conversation:join', async (conversationId) => {
+    // Join match room
+    socket.on('match:join', async (matchId) => {
       try {
-        // ตรวจสอบว่าผู้ใช้เป็นสมาชิกของการสนทนานี้หรือไม่
-        const conversation = await Conversation.findOne({
-          _id: conversationId,
-          participants: socket.userId
+        // ตรวจสอบว่าผู้ใช้เป็นสมาชิกของ match นี้หรือไม่
+        const match = await Match.findOne({
+          _id: matchId,
+          $or: [
+            { ownerAId: socket.userId },
+            { ownerBId: socket.userId }
+          ]
         });
 
-        if (!conversation) {
-          socket.emit('error', { message: 'Unauthorized access to conversation' });
+        if (!match) {
+          socket.emit('error', { message: 'Unauthorized access to match' });
           return;
         }
 
-        socket.join(conversationId);
-        console.log(`User ${socket.userId} joined conversation ${conversationId}`);
-        
+        socket.join(matchId);
+        console.log(`📥 User ${socket.userId} joined match ${matchId}`);
+
         // ส่งสถานะว่า join สำเร็จ
-        socket.emit('conversation:joined', { conversationId });
+        socket.emit('match:joined', { matchId });
       } catch (error) {
-        console.error('Error joining conversation:', error);
-        socket.emit('error', { message: 'Failed to join conversation' });
+        console.error('Error joining match:', error);
+        socket.emit('error', { message: 'Failed to join match' });
       }
     });
 
-    // ออกจาก room
-    socket.on('conversation:leave', (conversationId) => {
-      socket.leave(conversationId);
-      console.log(`User ${socket.userId} left conversation ${conversationId}`);
+    // ออกจาก match room
+    socket.on('match:leave', (matchId) => {
+      socket.leave(matchId);
+      console.log(`📤 User ${socket.userId} left match ${matchId}`);
     });
 
     // ส่งข้อความ
     socket.on('message:send', async (data) => {
       try {
-        const { conversationId, content, messageType = 'text', imageUrl } = data;
+        const { matchId, text } = data;
 
-        // ตรวจสอบว่าผู้ใช้เป็นสมาชิกของการสนทนานี้หรือไม่
-        const conversation = await Conversation.findOne({
-          _id: conversationId,
-          participants: socket.userId
+        if (!text || !text.trim()) {
+          socket.emit('error', { message: 'Message text is required' });
+          return;
+        }
+
+        // ตรวจสอบว่าผู้ใช้เป็นสมาชิกของ match นี้หรือไม่
+        const match = await Match.findOne({
+          _id: matchId,
+          $or: [
+            { ownerAId: socket.userId },
+            { ownerBId: socket.userId }
+          ]
         });
 
-        if (!conversation) {
-          socket.emit('error', { message: 'Unauthorized access to conversation' });
+        if (!match) {
+          socket.emit('error', { message: 'Unauthorized access to match' });
           return;
         }
 
         // สร้างข้อความใหม่
-        const message = new Message({
-          conversationId,
-          sender: socket.userId,
-          content,
-          messageType,
-          imageUrl,
-          isRead: false
+        const message = await Message.create({
+          matchId,
+          senderOwnerId: socket.userId,
+          text: text.trim()
         });
-
-        await message.save();
 
         // Populate sender information
-        await message.populate('sender', 'name profileImage');
+        await message.populate('senderOwnerId', 'displayName avatarUrl');
 
-        // อัพเดท lastMessage ของ conversation
-        conversation.lastMessage = message._id;
-        conversation.updatedAt = new Date();
-        await conversation.save();
-
-        // ส่งข้อความไปยังทุกคนใน room (รวมตัวเอง)
-        io.to(conversationId).emit('message:received', {
-          message: message.toObject(),
-          conversationId
+        // อัพเดท lastMessageAt ของ match
+        await Match.findByIdAndUpdate(matchId, {
+          lastMessageAt: message.sentAt
         });
 
-        // ส่งการแจ้งเตือนไปยังผู้รับที่ไม่ได้อยู่ในห้อง
-        const otherParticipants = conversation.participants.filter(
-          p => p.toString() !== socket.userId
-        );
+        // ส่งข้อความไปยังทุกคนใน room (รวมตัวเอง)
+        io.to(matchId).emit('message:received', {
+          message: message.toObject(),
+          matchId
+        });
 
-        for (const participantId of otherParticipants) {
-          const participantSocketId = userSocketMap.get(participantId.toString());
-          
-          if (participantSocketId) {
-            io.to(participantSocketId).emit('notification:new_message', {
-              conversationId,
-              message: message.toObject()
-            });
-          }
+        // หาผู้รับข้อความ (คนที่ไม่ใช่ตัวส่ง)
+        const recipientId = match.ownerAId.toString() === socket.userId
+          ? match.ownerBId.toString()
+          : match.ownerAId.toString();
+
+        // ส่งการแจ้งเตือนถ้าผู้รับออนไลน์อยู่
+        const recipientSocketId = userSocketMap.get(recipientId);
+        if (recipientSocketId) {
+          io.to(recipientSocketId).emit('notification:new_message', {
+            matchId,
+            message: message.toObject()
+          });
         }
 
       } catch (error) {
@@ -143,19 +147,19 @@ const initializeSocket = (server) => {
 
     // กำลังพิมพ์
     socket.on('typing:start', (data) => {
-      const { conversationId } = data;
-      socket.to(conversationId).emit('typing:user', {
+      const { matchId } = data;
+      socket.to(matchId).emit('typing:user', {
         userId: socket.userId,
-        conversationId,
+        matchId,
         isTyping: true
       });
     });
 
     socket.on('typing:stop', (data) => {
-      const { conversationId } = data;
-      socket.to(conversationId).emit('typing:user', {
+      const { matchId } = data;
+      socket.to(matchId).emit('typing:user', {
         userId: socket.userId,
-        conversationId,
+        matchId,
         isTyping: false
       });
     });
@@ -163,31 +167,25 @@ const initializeSocket = (server) => {
     // อ่านข้อความ
     socket.on('message:read', async (data) => {
       try {
-        const { conversationId, messageIds } = data;
+        const { matchId } = data;
 
-        // อัพเดทสถานะการอ่าน
-        await Message.updateMany(
+        // อัพเดทสถานะการอ่าน (ข้อความจากคนอื่นที่ยังไม่ได้อ่าน)
+        const result = await Message.updateMany(
           {
-            _id: { $in: messageIds },
-            conversationId,
-            sender: { $ne: socket.userId }
+            matchId,
+            senderOwnerId: { $ne: socket.userId },
+            read: false
           },
           {
-            $set: { isRead: true },
-            $push: {
-              readBy: {
-                userId: socket.userId,
-                readAt: new Date()
-              }
-            }
+            $set: { read: true }
           }
         );
 
         // ส่งสถานะการอ่านไปยัง sender
-        socket.to(conversationId).emit('message:read_update', {
-          conversationId,
-          messageIds,
-          readBy: socket.userId
+        socket.to(matchId).emit('message:read_update', {
+          matchId,
+          readBy: socket.userId,
+          count: result.modifiedCount
         });
 
       } catch (error) {
@@ -195,13 +193,26 @@ const initializeSocket = (server) => {
       }
     });
 
+    // Emit new match event (เรียกใช้จาก swipesController เมื่อ match สำเร็จ)
+    socket.on('match:notify', (data) => {
+      const { matchId, recipientId } = data;
+      const recipientSocketId = userSocketMap.get(recipientId);
+
+      if (recipientSocketId) {
+        io.to(recipientSocketId).emit('match:new', {
+          matchId,
+          message: 'You have a new match!'
+        });
+      }
+    });
+
     // Disconnect
     socket.on('disconnect', () => {
-      console.log(`User disconnected: ${socket.userId}`);
-      
+      console.log(`❌ User disconnected: ${socket.userId}`);
+
       // ลบ mapping
       userSocketMap.delete(socket.userId);
-      
+
       // ส่งสถานะ offline ให้ผู้ใช้คนอื่น
       socket.broadcast.emit('user:offline', { userId: socket.userId });
     });
@@ -221,8 +232,25 @@ const getUserSocketId = (userId) => {
   return userSocketMap.get(userId.toString());
 };
 
+// Helper function to emit new match event
+const emitNewMatch = (matchId, ownerAId, ownerBId) => {
+  if (!io) return;
+
+  const ownerASocketId = userSocketMap.get(ownerAId.toString());
+  const ownerBSocketId = userSocketMap.get(ownerBId.toString());
+
+  if (ownerASocketId) {
+    io.to(ownerASocketId).emit('match:new', { matchId });
+  }
+
+  if (ownerBSocketId) {
+    io.to(ownerBSocketId).emit('match:new', { matchId });
+  }
+};
+
 module.exports = {
   initializeSocket,
   getIO,
-  getUserSocketId
+  getUserSocketId,
+  emitNewMatch
 };

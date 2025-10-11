@@ -1,47 +1,47 @@
 const jwt = require('jsonwebtoken');
 
-const authMiddleware = async (req, res, next) => {
+const protect = async (req, res, next) => {
   try {
     const authHeader = req.headers.authorization;
-    
+
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
       return res.status(401).json({
-        success: false,
-        message: 'ไม่พบ token หรือ token ไม่ถูกต้อง'
+        status: 'error',
+        message: 'No token provided or invalid format'
       });
     }
 
     const token = authHeader.replace('Bearer ', '');
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
+    // ใช้ 'id' ตาม JWT payload ที่สร้างใน authController
     req.user = {
-      userId: decoded.userId,
-      email: decoded.email
+      id: decoded.id
     };
 
     next();
   } catch (error) {
     console.error('Auth middleware error:', error);
-    
+
     if (error.name === 'JsonWebTokenError') {
       return res.status(401).json({
-        success: false,
-        message: 'Token ไม่ถูกต้อง'
+        status: 'error',
+        message: 'Invalid token'
       });
     }
-    
+
     if (error.name === 'TokenExpiredError') {
       return res.status(401).json({
-        success: false,
-        message: 'Token หมดอายุ กรุณาเข้าสู่ระบบใหม่'
+        status: 'error',
+        message: 'Token expired, please login again'
       });
     }
 
     res.status(500).json({
-      success: false,
-      message: 'เกิดข้อผิดพลาดในการตรวจสอบสิทธิ์'
+      status: 'error',
+      message: 'Authentication error'
     });
   }
 };
 
-module.exports = authMiddleware;
+module.exports = { protect };

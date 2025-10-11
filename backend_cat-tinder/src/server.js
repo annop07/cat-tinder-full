@@ -3,7 +3,7 @@ const http = require('http');
 const cors = require('cors');
 require('dotenv').config();
 
-// ✅ Import connectDB
+// Import connectDB
 const connectDB = require('./config/db');
 const { initializeSocket } = require('./socket/socketServer');
 
@@ -17,10 +17,10 @@ app.use(express.urlencoded({ extended: true }));
 
 // Routes
 app.use('/api/auth', require('./routes/authRoute'));
-// app.use('/api/users', require('./routes/users')); // ⏸️ Comment ไว้ก่อน (ยังไม่ได้สร้าง)
-// app.use('/api/cats', require('./routes/cats')); // ⏸️ Comment ไว้ก่อน (ยังไม่ได้สร้าง)
-// app.use('/api/matches', require('./routes/matches')); // ⏸️ Comment ไว้ก่อน (ยังไม่ได้สร้าง)
-app.use('/api/conversations', require('./routes/conversationsRoute'));
+app.use('/api/owners', require('./routes/ownersRoute'));
+app.use('/api/cats', require('./routes/catsRoute'));
+app.use('/api/swipes', require('./routes/swipesRoute'));
+app.use('/api/matches', require('./routes/matchesRoute'));
 app.use('/api/messages', require('./routes/messagesRoute'));
 
 // ✅ เชื่อมต่อ MongoDB ก่อนเริ่ม server

@@ -1,35 +1,9 @@
-import { Tabs, Redirect } from 'expo-router';
+import { Tabs } from 'expo-router';
 import { Feather } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useEffect, useState } from "react";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 
 const TabsLayout = () => {
   const insets = useSafeAreaInsets();
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
-
-  useEffect(() => {
-    checkAuth();
-  }, []);
-
-  const checkAuth = async () => {
-    try {
-      const token = await AsyncStorage.getItem("token");
-      setIsAuthenticated(!!token);
-    } catch (error) {
-      console.error("Error checking auth:", error);
-      setIsAuthenticated(false);
-    }
-  };
-
-  // แสดง loading หรือ redirect ขณะตรวจสอบ auth
-  if (isAuthenticated === null) {
-    return null;
-  }
-
-  if (!isAuthenticated) {
-    return <Redirect href="/login" />;
-  }
 
   return (
     <Tabs
@@ -52,7 +26,7 @@ const TabsLayout = () => {
       }}
     >
       <Tabs.Screen
-        name='index'
+        name='home'
         options={{
           title: "Home",
           tabBarIcon: ({ color, size }) => (
