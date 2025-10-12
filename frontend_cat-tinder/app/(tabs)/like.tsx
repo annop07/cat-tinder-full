@@ -15,7 +15,9 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
 import { swipeAPI, catAPI } from '@/services/api';
 import PinkButton from '@/components/PinkButton';
-import type { Cat } from '@/types';
+import CatViewModal from '@/components/CatViewModal';
+import MatchModal from '@/components/MatchModal';
+import type { Cat, Match } from '@/types';
 
 export default function LikeScreen() {
   const { user } = useAuth();
@@ -24,10 +26,14 @@ export default function LikeScreen() {
   const [activeTab, setActiveTab] = useState<'received' | 'sent'>('received');
   const [myCats, setMyCats] = useState<Cat[]>([]);
   const [selectedCat, setSelectedCat] = useState<Cat | null>(null);
-  const [likesReceived, setLikesReceived] = useState<any[]>([]);
-  const [likesSent, setLikesSent] = useState<any[]>([]);
+  const [interestsReceived, setInterestsReceived] = useState<any[]>([]);
+  const [interestsSent, setInterestsSent] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [selectedInterestCat, setSelectedInterestCat] = useState<Cat | null>(null);
+  const [showInterestModal, setShowInterestModal] = useState(false);
+  const [showMatchModal, setShowMatchModal] = useState(false);
+  const [currentMatch, setCurrentMatch] = useState<Match | null>(null);
 
   useEffect(() => {
     loadData();
@@ -35,18 +41,24 @@ export default function LikeScreen() {
 
   useEffect(() => {
     if (selectedCat) {
-      loadLikes();
+      loadInterests();
     }
   }, [selectedCat, activeTab]);
 
   const loadData = async () => {
     try {
       setLoading(true);
+      console.log('🔄 Loading cats data...');
       const catsResponse = await catAPI.getMyCats();
+      console.log('📨 getMyCats response:', catsResponse);
 
       if (catsResponse?.status === 'ok' && catsResponse?.data?.length > 0) {
+        console.log(`✅ Found ${catsResponse.data.length} cats`);
         setMyCats(catsResponse.data);
         setSelectedCat(catsResponse.data[0]); // Select first cat by default
+        console.log('🎯 Selected cat:', catsResponse.data[0]);
+      } else {
+        console.log('❌ No cats found or invalid response');
       }
     } catch (error: any) {
       console.error('❌ Error loading cats:', error);
@@ -57,23 +69,39 @@ export default function LikeScreen() {
     }
   };
 
-  const loadLikes = async () => {
-    if (!selectedCat) return;
+  const loadInterests = async () => {
+    if (!selectedCat) {
+      console.log('❌ No selected cat for loading interests');
+      return;
+    }
+
+    console.log(`🔄 Loading interests for tab: ${activeTab}, catId: ${selectedCat._id}`);
 
     try {
       if (activeTab === 'received') {
+        console.log('📞 Calling getLikesReceived...');
         const response = await swipeAPI.getLikesReceived(selectedCat._id);
+        console.log('📨 getLikesReceived response:', response);
         if (response?.status === 'ok') {
-          setLikesReceived(response.data || []);
+          console.log(`✅ Found ${response.data?.length || 0} received interests`);
+          setInterestsReceived(response.data || []);
+        } else {
+          console.log('❌ Invalid response status:', response?.status);
         }
       } else {
+        console.log('📞 Calling getLikesSent...');
         const response = await swipeAPI.getLikesSent(selectedCat._id);
+        console.log('📨 getLikesSent response:', response);
         if (response?.status === 'ok') {
-          setLikesSent(response.data || []);
+          console.log(`✅ Found ${response.data?.length || 0} sent interests`);
+          setInterestsSent(response.data || []);
+        } else {
+          console.log('❌ Invalid response status:', response?.status);
         }
       }
     } catch (error: any) {
-      console.error('❌ Error loading likes:', error);
+      console.error('❌ Error loading interests:', error);
+      console.error('❌ Error details:', error.response?.data);
     }
   };
 
@@ -82,22 +110,93 @@ export default function LikeScreen() {
     loadData();
   };
 
+  const handleInterestTap = (interest: any) => {
+    // Get the cat data based on whether it's received or sent interest
+    const catData = activeTab === 'received' ? interest.swiperCatId : interest.targetCatId;
+
+    if (catData) {
+      setSelectedInterestCat(catData);
+      setShowInterestModal(true);
+    }
+  };
+
+  const handleCloseInterestModal = () => {
+    setShowInterestModal(false);
+    setSelectedInterestCat(null);
+  };
+
+  const handleCloseMatchModal = () => {
+    setShowMatchModal(false);
+    setCurrentMatch(null);
+
+    // Refresh interests to remove matched items
+    console.log('🔄 Match modal closed - refreshing interests');
+    setTimeout(() => {
+      loadInterests();
+    }, 500);
+  };
+
+  const handleSendMessage = () => {
+    setShowMatchModal(false);
+    if (currentMatch?._id) {
+      // Navigate to chat (you may need to add navigation here)
+      console.log('💬 Navigate to chat with match:', currentMatch._id);
+    }
+    setCurrentMatch(null);
+  };
+
+  const handleViewLater = () => {
+    setShowMatchModal(false);
+    setCurrentMatch(null);
+    // Navigate to messages tab (you may need to add navigation here)
+    console.log('📱 Navigate to messages tab');
+  };
+
   const handleLikeBack = async (targetCatId: string) => {
     if (!selectedCat) return;
 
     try {
-      await swipeAPI.createSwipe({
+      console.log('🔄 Attempting to interest back:', {
         swiperCatId: selectedCat._id,
         targetCatId: targetCatId,
-        action: 'like'
+        action: 'interested'
       });
 
-      // Refresh likes after liking back
-      await loadLikes();
-      Alert.alert('สำเร็จ!', 'ไลค์กลับแล้ว ❤️');
+      const response = await swipeAPI.createSwipe({
+        swiperCatId: selectedCat._id,
+        targetCatId: targetCatId,
+        action: 'interested'
+      });
+
+      console.log('📨 Interest back response:', JSON.stringify(response, null, 2));
+
+      // Check if it's a match
+      if (response?.status === 'ok' && response?.data?.matched && response?.data?.match) {
+        console.log('💕 MATCH FOUND! Showing MatchModal...');
+        setCurrentMatch(response.data.match);
+        setShowMatchModal(true);
+
+        // Close interest modal if open
+        setShowInterestModal(false);
+        setSelectedInterestCat(null);
+      } else {
+        console.log('✅ Interest sent successfully (no match)');
+        // Just show success message if no match
+        Alert.alert('สำเร็จ!', 'สนใจกลับแล้ว ⭐');
+      }
+
+      // Refresh interests after liking back
+      await loadInterests();
     } catch (error: any) {
       console.error('❌ Error liking back:', error);
-      Alert.alert('เกิดข้อผิดพลาด', 'ไม่สามารถไลค์กลับได้');
+      console.error('❌ Error response:', error.response?.data);
+
+      // Handle specific error cases
+      if (error.response?.data?.message?.includes('already swiped')) {
+        Alert.alert('แจ้งเตือน', 'คุณได้แสดงความสนใจแมวนี้แล้ว');
+      } else {
+        Alert.alert('เกิดข้อผิดพลาด', error.response?.data?.message || 'ไม่สามารถแสดงความสนใจกลับได้');
+      }
     }
   };
 
@@ -146,7 +245,10 @@ export default function LikeScreen() {
     );
   }
 
-  const currentLikes = activeTab === 'received' ? likesReceived : likesSent;
+  const currentInterests = activeTab === 'received' ? interestsReceived : interestsSent;
+
+  // Debug logging for rendering
+  console.log(`🎨 Rendering interests - Tab: ${activeTab}, Count: ${currentInterests.length}`);
 
   return (
     <SafeAreaView
@@ -169,7 +271,13 @@ export default function LikeScreen() {
             className="text-2xl font-bold"
             style={{ color: colors.text }}
           >
-            Likes ❤️
+            Interests 
+          </Text>
+          <Text
+            className="text-sm mt-1"
+            style={{ color: colors.textSecondary }}
+          >
+            ความสนใจพิเศษที่ได้รับและส่งไป
           </Text>
         </View>
 
@@ -243,7 +351,7 @@ export default function LikeScreen() {
                   color: activeTab === 'received' ? 'white' : colors.primary
                 }}
               >
-                ได้รับ ({likesReceived.length})
+                ได้รับ ({interestsReceived.length})
               </Text>
             </TouchableOpacity>
 
@@ -260,18 +368,18 @@ export default function LikeScreen() {
                   color: activeTab === 'sent' ? 'white' : colors.primary
                 }}
               >
-                ส่งไป ({likesSent.length})
+                ส่งไป ({interestsSent.length})
               </Text>
             </TouchableOpacity>
           </View>
         </View>
 
-        {/* Likes List */}
+        {/* Interests List */}
         <View className="px-6">
-          {currentLikes.length === 0 ? (
+          {currentInterests.length === 0 ? (
             <View className="items-center py-12">
               <Ionicons
-                name={activeTab === 'received' ? 'heart-outline' : 'heart'}
+                name={activeTab === 'received' ? 'star-outline' : 'star'}
                 size={48}
                 color={colors.textSecondary}
               />
@@ -279,23 +387,24 @@ export default function LikeScreen() {
                 className="text-lg font-medium mt-4 mb-2"
                 style={{ color: colors.text }}
               >
-                {activeTab === 'received' ? 'ยังไม่มีใครไลค์' : 'ยังไม่ได้ไลค์ใคร'}
+                {activeTab === 'received' ? 'ยังไม่มีใครสนใจพิเศษ' : 'ยังไม่ได้ส่ง Interest'}
               </Text>
               <Text
                 className="text-base text-center"
                 style={{ color: colors.textSecondary }}
               >
                 {activeTab === 'received'
-                  ? 'เมื่อมีคนไลค์แมวของคุณ จะแสดงที่นี่'
-                  : 'ไลค์ที่คุณส่งให้แมวอื่น ๆ จะแสดงที่นี่'
+                  ? 'เมื่อมีคนส่ง Interest ให้แมวของคุณ จะแสดงที่นี่'
+                  : 'Interest พิเศษที่คุณส่งให้แมวอื่น ๆ จะแสดงที่นี่'
                 }
               </Text>
             </View>
           ) : (
             <View>
-              {currentLikes.map((like, index) => (
-                <View
-                  key={like._id || index}
+              {currentInterests.map((interest, index) => (
+                <TouchableOpacity
+                  key={interest._id || index}
+                  onPress={() => handleInterestTap(interest)}
                   className="rounded-3xl p-4 mb-4"
                   style={{
                     backgroundColor: isDark ? '#2a2a2a' : 'white',
@@ -310,20 +419,20 @@ export default function LikeScreen() {
                     {/* Cat Photo */}
                     <View
                       className="w-16 h-16 rounded-full mr-4 justify-center items-center"
-                      style={{ backgroundColor: colors.primary + '20' }}
+                      style={{ backgroundColor: '#f59e0b' + '20' }}
                     >
-                      {like.targetCatId?.photos?.[0] || like.swiperCatId?.photos?.[0] ? (
+                      {interest.targetCatId?.photos?.[0] || interest.swiperCatId?.photos?.[0] ? (
                         <Image
                           source={{
                             uri: activeTab === 'received'
-                              ? like.swiperCatId?.photos?.[0]?.url
-                              : like.targetCatId?.photos?.[0]?.url
+                              ? interest.swiperCatId?.photos?.[0]?.url
+                              : interest.targetCatId?.photos?.[0]?.url
                           }}
                           className="w-16 h-16 rounded-full"
                           resizeMode="cover"
                         />
                       ) : (
-                        <Ionicons name="heart" size={24} color={colors.primary} />
+                        <Ionicons name="star" size={24} color="#f59e0b" />
                       )}
                     </View>
 
@@ -334,46 +443,91 @@ export default function LikeScreen() {
                         style={{ color: colors.text }}
                       >
                         {activeTab === 'received'
-                          ? like.swiperCatId?.name
-                          : like.targetCatId?.name
-                        } ❤️
+                          ? interest.swiperCatId?.name
+                          : interest.targetCatId?.name
+                        } ⭐
                       </Text>
                       <Text
                         className="text-sm"
                         style={{ color: colors.textSecondary }}
                       >
                         {activeTab === 'received'
-                          ? `ไลค์ ${selectedCat?.name}`
-                          : `คุณไลค์แล้ว`
+                          ? `สนใจพิเศษ ${selectedCat?.name}`
+                          : `คุณส่ง Interest แล้ว`
                         }
                       </Text>
                       <Text
                         className="text-xs mt-1"
                         style={{ color: colors.textSecondary }}
                       >
-                        {new Date(like.createdAt).toLocaleDateString('th-TH')}
+                        {new Date(interest.createdAt).toLocaleDateString('th-TH')}
+                      </Text>
+                      <Text
+                        className="text-xs mt-1"
+                        style={{ color: colors.primary, fontStyle: 'italic' }}
+                      >
+                        👆 แตะเพื่อดูรายละเอียด
                       </Text>
                     </View>
 
-                    {/* Action Button - only for received likes */}
+                    {/* Action Button - only for received interests */}
                     {activeTab === 'received' && (
                       <TouchableOpacity
-                        onPress={() => handleLikeBack(like.swiperCatId._id)}
+                        onPress={(event) => {
+                          event.stopPropagation();
+                          const targetId = interest.swiperCatId?._id || interest.swiperCatId;
+                          console.log('🎯 Interest back target:', { targetId, interestData: interest });
+                          handleLikeBack(targetId);
+                        }}
                         className="px-4 py-2 rounded-full"
-                        style={{ backgroundColor: colors.primary }}
+                        style={{ backgroundColor: '#f59e0b' }}
                       >
                         <Text className="text-white text-sm font-medium">
-                          ❤️ ไลค์กลับ
+                          ⭐ สนใจกลับ
                         </Text>
                       </TouchableOpacity>
                     )}
                   </View>
-                </View>
+                </TouchableOpacity>
               ))}
             </View>
           )}
         </View>
       </ScrollView>
+
+      {/* Interest Detail Modal */}
+      <CatViewModal
+        visible={showInterestModal}
+        cat={selectedInterestCat}
+        onClose={handleCloseInterestModal}
+        hideActions={activeTab === 'sent'} // Hide action buttons for sent interests
+        onLike={() => {
+          // Handle like from modal (only for received interests)
+          if (selectedInterestCat) {
+            handleLikeBack(selectedInterestCat._id);
+            handleCloseInterestModal();
+          }
+        }}
+        onInterested={() => {
+          // Handle interest from modal (only for received interests)
+          if (selectedInterestCat) {
+            handleLikeBack(selectedInterestCat._id);
+            handleCloseInterestModal();
+          }
+        }}
+        onPass={() => {
+          // Just close modal for pass
+          handleCloseInterestModal();
+        }}
+      />
+
+      {/* Match Modal */}
+      <MatchModal
+        visible={showMatchModal}
+        match={currentMatch}
+        onClose={handleCloseMatchModal}
+        onSendMessage={handleSendMessage}
+      />
     </SafeAreaView>
   );
 }

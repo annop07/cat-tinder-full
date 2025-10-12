@@ -8,7 +8,8 @@ export default function Index() {
   const { isAuthenticated, loading, user } = useAuth();
   const { colors } = useTheme();
 
-  console.log('📱 Index - loading:', loading, 'isAuthenticated:', isAuthenticated, 'user:', !!user);
+  console.log('📱 Index rendered - loading:', loading, 'isAuthenticated:', isAuthenticated, 'user:', !!user);
+  console.log('📱 Index user details:', { userId: user?._id, email: user?.email });
 
   // แสดง loading ขณะเช็ค auth
   if (loading) {

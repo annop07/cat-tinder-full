@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { authAPI } from '@/services/api';
 import { STORAGE_KEYS } from '@/constants/config';
+import { globalEvents } from '@/utils/eventEmitter';
 import type { Owner } from '@/types';
 
 interface AuthContextType {
@@ -25,6 +26,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     checkAuth();
   }, []);
 
+  // Monitor authentication state changes
+  useEffect(() => {
+    console.log('🔄 Auth state changed:', {
+      hasToken: !!token,
+      hasUser: !!user,
+      isAuthenticated: !!token && !!user,
+      loading
+    });
+  }, [token, user, loading]);
+
   const checkAuth = async () => {
     try {
       console.log('🔍 Starting auth check...');
@@ -43,9 +54,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           console.log('📨 getCurrentUser response:', response);
           
           const userData = extractUserData(response);
+          console.log('🔍 Extracted user data:', userData);
           if (userData) {
             setUser(userData);
-            console.log('✅ User authenticated:', userData._id);
+            console.log('✅ User authenticated and state set:', userData._id);
           } else {
             console.log('❌ Invalid user data, clearing storage...');
             await clearStorageAndLogout();
@@ -154,6 +166,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       console.log('🔄 Logging out...');
 
+      // Emit logout event to disconnect socket before API call
+      globalEvents.emit('user:logout');
+
       // เรียก backend logout API (ไม่บังคับ แต่ดีสำหรับ security)
       try {
         await authAPI.logout();
@@ -189,6 +204,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const isAuthenticated = !!token && !!user;
+
+  // Debug log for authentication state
+  console.log('🔍 AuthContext state:', {
+    hasToken: !!token,
+    hasUser: !!user,
+    isAuthenticated,
+    loading,
+    userId: user?._id
+  });
+
   return (
     <AuthContext.Provider value={{
       user,
@@ -197,7 +223,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       login,
       register,
       logout,
-      isAuthenticated: !!token && !!user,
+      isAuthenticated,
     }}>
       {children}
     </AuthContext.Provider>

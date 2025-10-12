@@ -10,11 +10,14 @@ import {
   RefreshControl,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import * as ImagePicker from 'expo-image-picker';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
 import { ownerAPI, catAPI } from '@/services/api';
+import { STORAGE_KEYS } from '@/constants/config';
 import PinkButton from '@/components/PinkButton';
 import ThaiInput from '@/components/ThaiInput';
 import AddCatModal from '@/components/AddCatModal';
@@ -33,9 +36,11 @@ export default function ProfileScreen() {
   const [showAddCatModal, setShowAddCatModal] = useState(false);
   const [selectedCat, setSelectedCat] = useState<Cat | null>(null);
   const [showCatDetailModal, setShowCatDetailModal] = useState(false);
+  const [selectedForMatching, setSelectedForMatching] = useState<string | null>(null);
   const [editData, setEditData] = useState({
     username: '',
     phone: '',
+    avatar: '',
     location: {
       province: '',
       lat: 0,
@@ -46,7 +51,22 @@ export default function ProfileScreen() {
   useEffect(() => {
     if (user) {
       loadProfileData();
+      loadSelectedCatForMatching();
     }
+  }, [user]);
+
+  // Listen for focus to refresh data when returning from other screens
+  useEffect(() => {
+    const handleFocus = () => {
+      if (user) {
+        console.log('🔄 Profile screen focused, refreshing data...');
+        loadProfileData();
+        loadSelectedCatForMatching();
+      }
+    };
+
+    // Refresh when screen becomes focused
+    handleFocus();
   }, [user]);
 
   const loadProfileData = async () => {
@@ -69,6 +89,7 @@ export default function ProfileScreen() {
         setEditData({
           username: profileData.username || '',
           phone: profileData.phone || '',
+          avatar: profileData.avatar?.url || '',
           location: {
             province: profileData.location?.province || '',
             lat: profileData.location?.lat || 0,
@@ -78,7 +99,12 @@ export default function ProfileScreen() {
       }
 
       if (catsResponse?.status === 'ok' && catsResponse?.data) {
-        setMyCats(catsResponse.data);
+        const cats = catsResponse.data;
+        setMyCats(cats);
+        console.log(`🐱 Found ${cats.length} cats in profile`);
+
+        // Smart cat selection for matching based on 3 cases
+        await handleCatSelectionLogic(cats);
       }
     } catch (error: any) {
       console.error('❌ Error loading profile data:', error);
@@ -86,6 +112,90 @@ export default function ProfileScreen() {
     } finally {
       setLoading(false);
       setRefreshing(false);
+    }
+  };
+
+  const loadSelectedCatForMatching = async () => {
+    try {
+      const savedCatId = await AsyncStorage.getItem(STORAGE_KEYS.SELECTED_CAT_FOR_MATCHING);
+      if (savedCatId) {
+        setSelectedForMatching(savedCatId);
+        console.log('🎯 Loaded selected cat for matching:', savedCatId);
+      }
+    } catch (error) {
+      console.error('❌ Error loading selected cat:', error);
+    }
+  };
+
+  const handleCatSelectionLogic = async (cats: Cat[]) => {
+    try {
+      const activeCats = cats.filter(cat => cat.active);
+      const savedCatId = await AsyncStorage.getItem(STORAGE_KEYS.SELECTED_CAT_FOR_MATCHING);
+
+      console.log(`🎯 Cat selection logic: ${activeCats.length} active cats, saved: ${savedCatId}`);
+
+      if (activeCats.length === 0) {
+        // Case 1: No active cats - clear any previous selection
+        console.log('❌ No active cats, clearing selection');
+        if (savedCatId) {
+          await AsyncStorage.removeItem(STORAGE_KEYS.SELECTED_CAT_FOR_MATCHING);
+          setSelectedForMatching(null);
+        }
+
+      } else if (activeCats.length === 1) {
+        // Case 2: Only 1 active cat - auto select it
+        const singleCat = activeCats[0];
+        console.log(`🎯 Auto-selecting single cat: ${singleCat.name} (${singleCat._id})`);
+
+        if (savedCatId !== singleCat._id) {
+          await AsyncStorage.setItem(STORAGE_KEYS.SELECTED_CAT_FOR_MATCHING, singleCat._id);
+          setSelectedForMatching(singleCat._id);
+          console.log('✅ Auto-selection completed');
+        }
+
+      } else {
+        // Case 3: Multiple cats - validate existing selection
+        console.log(`🤔 Multiple cats (${activeCats.length}), checking saved selection`);
+
+        if (savedCatId) {
+          // Check if saved cat still exists and is active
+          const savedCat = activeCats.find(cat => cat._id === savedCatId);
+          if (savedCat) {
+            console.log(`✅ Saved cat "${savedCat.name}" is still valid`);
+            setSelectedForMatching(savedCatId);
+          } else {
+            console.log('❌ Saved cat no longer valid, clearing selection');
+            await AsyncStorage.removeItem(STORAGE_KEYS.SELECTED_CAT_FOR_MATCHING);
+            setSelectedForMatching(null);
+          }
+        } else {
+          console.log('🤷‍♂️ No cat selected, user needs to choose one');
+          setSelectedForMatching(null);
+        }
+      }
+    } catch (error) {
+      console.error('❌ Error in cat selection logic:', error);
+    }
+  };
+
+  const selectCatForMatching = async (catId: string) => {
+    try {
+      await AsyncStorage.setItem(STORAGE_KEYS.SELECTED_CAT_FOR_MATCHING, catId);
+      setSelectedForMatching(catId);
+      console.log('🎯 Selected cat for matching:', catId);
+
+      const selectedCat = myCats.find(cat => cat._id === catId);
+      Alert.alert(
+        'เลือกแมวสำหรับหาคู่',
+        `เลือก "${selectedCat?.name}" สำหรับการหาคู่แล้ว`,
+        [{ text: 'ตกลง' }]
+      );
+
+      // Refresh to update UI
+      await loadSelectedCatForMatching();
+    } catch (error) {
+      console.error('❌ Error saving selected cat:', error);
+      Alert.alert('เกิดข้อผิดพลาด', 'ไม่สามารถบันทึกการเลือกแมวได้');
     }
   };
 
@@ -131,6 +241,7 @@ export default function ProfileScreen() {
       setEditData({
         username: currentProfile.username || '',
         phone: currentProfile.phone || '',
+        avatar: currentProfile.avatar?.url || '',
         location: {
           province: currentProfile.location?.province || '',
           lat: currentProfile.location?.lat || 0,
@@ -139,6 +250,33 @@ export default function ProfileScreen() {
       });
     }
     setIsEditing(false);
+  };
+
+  const pickAvatarImage = async () => {
+    try {
+      // Request permissions first
+      const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
+
+      if (permissionResult.granted === false) {
+        Alert.alert('สิทธิ์การเข้าถึง', 'กรุณาอนุญาตการเข้าถึงแกลเลอรี่เพื่อเลือกรูปโปรไฟล์');
+        return;
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [1, 1], // Square for avatar
+        quality: 0.5, // Reduced quality for faster upload
+        allowsMultipleSelection: false,
+      });
+
+      if (!result.canceled && result.assets && result.assets[0]) {
+        setEditData(prev => ({ ...prev, avatar: result.assets[0].uri }));
+      }
+    } catch (error) {
+      console.error('Error picking avatar image:', error);
+      Alert.alert('เกิดข้อผิดพลาด', 'ไม่สามารถเลือกรูปภาพได้ กรุณาลองใหม่อีกครั้ง');
+    }
   };
 
   const handleSaveProfile = async () => {
@@ -151,7 +289,7 @@ export default function ProfileScreen() {
         return;
       }
 
-      const updateData = {
+      const updateData: any = {
         username: editData.username.trim(),
         phone: editData.phone.trim() || undefined,
         location: editData.location.province ? {
@@ -160,6 +298,12 @@ export default function ProfileScreen() {
           lng: editData.location.lng
         } : undefined
       };
+
+      // Check if avatar was changed (new URI vs existing URL)
+      const currentAvatar = (profile || user)?.avatar?.url || '';
+      if (editData.avatar && editData.avatar !== currentAvatar) {
+        updateData.avatar = editData.avatar; // This will be a file URI
+      }
 
       const response = await ownerAPI.updateProfile(updateData);
 
@@ -245,6 +389,7 @@ export default function ProfileScreen() {
           </View>
 
           {/* Profile Card */}
+          {/* Profile Card */}
           <View
             className="rounded-3xl p-6 mb-6"
             style={{
@@ -273,48 +418,53 @@ export default function ProfileScreen() {
 
             {!isEditing ? (
               /* View Mode */
-              <View className="items-center mb-6">
-                <View
-                  className="w-24 h-24 rounded-full mb-4 justify-center items-center"
-                  style={{ backgroundColor: colors.primary + '20' }}
-                >
-                  {currentProfile?.avatarUrl ? (
-                    <Image
-                      source={{ uri: currentProfile.avatarUrl }}
-                      className="w-24 h-24 rounded-full"
-                      resizeMode="cover"
-                    />
-                  ) : (
-                    <Ionicons
-                      name="person"
-                      size={40}
-                      color={colors.primary}
-                    />
-                  )}
-                </View>
-
-                <Text
-                  className="text-xl font-bold mb-4"
-                  style={{ color: colors.text }}
-                >
-                  @{currentProfile?.username || 'ไม่มีชื่อ'}
-                </Text>
-
-                {currentProfile?.location?.province && (
-                  <View className="flex-row items-center mb-4">
-                    <Ionicons
-                      name="location-outline"
-                      size={16}
-                      color={colors.textSecondary}
-                    />
-                    <Text
-                      className="text-sm ml-1"
-                      style={{ color: colors.textSecondary }}
-                    >
-                      {currentProfile.location.province}
-                    </Text>
+              <View>
+                {/* Avatar and Username - Horizontal Layout */}
+                <View className="flex-row items-center mb-6">
+                  <View
+                    className="w-24 h-24 rounded-full justify-center items-center"
+                    style={{ backgroundColor: colors.primary + '20' }}
+                  >
+                    {currentProfile?.avatar?.url ? (
+                      <Image
+                        source={{ uri: currentProfile.avatar.url }}
+                        className="w-24 h-24 rounded-full"
+                        resizeMode="cover"
+                      />
+                    ) : (
+                      <Ionicons
+                        name="person"
+                        size={40}
+                        color={colors.primary}
+                      />
+                    )}
                   </View>
-                )}
+
+                  <View className="flex-1 ml-4">
+                    <Text
+                      className="text-xl font-bold mb-2"
+                      style={{ color: colors.text }}
+                    >
+                      @{currentProfile?.username || 'ไม่มีชื่อ'}
+                    </Text>
+
+                    {currentProfile?.location?.province && (
+                      <View className="flex-row items-center">
+                        <Ionicons
+                          name="location-outline"
+                          size={16}
+                          color={colors.textSecondary}
+                        />
+                        <Text
+                          className="text-sm ml-1"
+                          style={{ color: colors.textSecondary }}
+                        >
+                          {currentProfile.location.province}
+                        </Text>
+                      </View>
+                    )}
+                  </View>
+                </View>
               </View>
             ) : (
               /* Edit Mode */
@@ -325,6 +475,37 @@ export default function ProfileScreen() {
                 >
                   แก้ไขโปรไฟล์
                 </Text>
+
+                {/* Avatar Editor */}
+                <View className="items-center mb-6">
+                  <TouchableOpacity
+                    onPress={pickAvatarImage}
+                    className="items-center justify-center rounded-full border-4 mb-2"
+                    style={{
+                      width: 100,
+                      height: 100,
+                      borderColor: colors.primary + '40',
+                      backgroundColor: colors.surface,
+                    }}
+                  >
+                    {editData.avatar ? (
+                      <Image
+                        source={{ uri: editData.avatar }}
+                        style={{ width: 92, height: 92 }}
+                        className="rounded-full"
+                      />
+                    ) : (
+                      <View className="items-center">
+                        <Ionicons name="camera" size={36} color={colors.primary} />
+                      </View>
+                    )}
+                  </TouchableOpacity>
+                  <TouchableOpacity onPress={pickAvatarImage}>
+                    <Text style={{ color: colors.primary }} className="text-sm font-medium">
+                      เปลี่ยนรูปโปรไฟล์
+                    </Text>
+                  </TouchableOpacity>
+                </View>
 
                 <View className="space-y-4">
                   <ThaiInput
@@ -407,20 +588,6 @@ export default function ProfileScreen() {
                   แมทช์
                 </Text>
               </View>
-              <View className="items-center">
-                <Text
-                  className="text-xl font-bold"
-                  style={{ color: colors.primary }}
-                >
-                  {currentProfile?.email ? '✓' : '✗'}
-                </Text>
-                <Text
-                  className="text-sm"
-                  style={{ color: colors.textSecondary }}
-                >
-                  ยืนยันอีเมล
-                </Text>
-              </View>
               </View>
             )}
           </View>
@@ -453,6 +620,48 @@ export default function ProfileScreen() {
               </TouchableOpacity>
             </View>
 
+            {/* Cat Selection Status */}
+            {myCats.length > 0 && (
+              <View
+                className="p-4 rounded-2xl mb-4"
+                style={{
+                  backgroundColor: selectedForMatching ? colors.primary + '10' : colors.surface
+                }}
+              >
+                <View className="flex-row items-center">
+                  <Ionicons
+                    name={selectedForMatching ? "heart" : "heart-outline"}
+                    size={20}
+                    color={selectedForMatching ? colors.primary : colors.textSecondary}
+                  />
+                  <Text
+                    className="text-sm font-medium ml-2 flex-1"
+                    style={{
+                      color: selectedForMatching ? colors.primary : colors.textSecondary
+                    }}
+                  >
+                    {myCats.length === 1
+                      ? `${myCats[0].name} พร้อมหาคู่แล้ว`
+                      : selectedForMatching
+                        ? `แมวที่เลือกสำหรับหาคู่: ${myCats.find(cat => cat._id === selectedForMatching)?.name || 'ไม่ระบุ'}`
+                        : 'กรุณาเลือกแมวสำหรับการหาคู่'
+                    }
+                  </Text>
+                </View>
+                <Text
+                  className="text-xs mt-1 ml-6"
+                  style={{ color: colors.textSecondary }}
+                >
+                  {myCats.length === 1
+                    ? 'แมวตัวเดียวจะถูกเลือกอัตโนมัติ'
+                    : myCats.length > 1 && !selectedForMatching
+                      ? 'คลิกที่แมวเพื่อเลือกสำหรับการหาคู่'
+                      : 'คลิกที่แมวเพื่อดูรายละเอียดและเปลี่ยนการเลือก'
+                  }
+                </Text>
+              </View>
+            )}
+
             {myCats.length > 0 ? (
               <ScrollView
                 horizontal
@@ -468,14 +677,22 @@ export default function ProfileScreen() {
                     activeOpacity={0.7}
                   >
                     <View
-                      className="w-16 h-16 rounded-full mb-2 justify-center items-center"
-                      style={{ backgroundColor: colors.primary + '20' }}
+                      className="w-16 h-16 rounded-full mb-2 justify-center items-center relative"
+                      style={{
+                        backgroundColor: colors.primary + '20',
+                        borderWidth: selectedForMatching === cat._id ? 3 : 0,
+                        borderColor: selectedForMatching === cat._id ? colors.primary : 'transparent'
+                      }}
                     >
                       {cat.photos && cat.photos[0] ? (
                         <Image
                           source={{ uri: cat.photos[0].url }}
                           className="w-16 h-16 rounded-full"
                           resizeMode="cover"
+                          style={{
+                            width: selectedForMatching === cat._id ? 58 : 64,
+                            height: selectedForMatching === cat._id ? 58 : 64,
+                          }}
                         />
                       ) : (
                         <Ionicons
@@ -484,10 +701,23 @@ export default function ProfileScreen() {
                           color={colors.primary}
                         />
                       )}
+
+                      {/* Selected indicator */}
+                      {selectedForMatching === cat._id && (
+                        <View
+                          className="absolute -top-1 -right-1 w-6 h-6 rounded-full items-center justify-center"
+                          style={{ backgroundColor: colors.primary }}
+                        >
+                          <Ionicons name="heart" size={12} color="white" />
+                        </View>
+                      )}
                     </View>
                     <Text
                       className="text-xs font-medium text-center"
-                      style={{ color: colors.text }}
+                      style={{
+                        color: selectedForMatching === cat._id ? colors.primary : colors.text,
+                        fontWeight: selectedForMatching === cat._id ? 'bold' : 'normal'
+                      }}
                       numberOfLines={2}
                     >
                       {cat.name}
@@ -590,6 +820,8 @@ export default function ProfileScreen() {
           setSelectedCat(null);
         }}
         onUpdate={handleCatDetailUpdate}
+        selectedForMatching={selectedForMatching}
+        onSelectForMatching={selectCatForMatching}
       />
     </SafeAreaView>
   );

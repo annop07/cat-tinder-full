@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -10,21 +10,18 @@ import {
   Image,
   Modal,
   ActivityIndicator,
-  TextInput,
 } from 'react-native';
-import { useRouter, Redirect } from 'expo-router';
+import { useRouter, useLocalSearchParams, Redirect } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
-import { STORAGE_KEYS, API_URL } from '@/constants/config';
 import ThaiInput from '@/components/ThaiInput';
 import PinkButton from '@/components/PinkButton';
 import { catAPI } from '@/services/api';
-import Foundation from '@expo/vector-icons/Foundation';
-
-
+import { API_URL, STORAGE_KEYS } from '@/constants/config';
+import type { Cat } from '@/types';
 
 const TRAITS = [
   { value: 'playful', label: 'ขี้เล่น' },
@@ -52,14 +49,19 @@ const CAT_BREEDS = [
   'อื่นๆ',
 ];
 
-export default function AddCat() {
+export default function EditCat() {
   const router = useRouter();
+  const { catId } = useLocalSearchParams<{ catId: string }>();
   const { user, loading: authLoading, isAuthenticated } = useAuth();
   const { colors, isDark } = useTheme();
 
   // Progress step (1-4)
   const [currentStep, setCurrentStep] = useState(1);
+  const [catData, setCatData] = useState<Cat | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
 
+  // Form state
   const [name, setName] = useState('');
   const [gender, setGender] = useState<'male' | 'female' | ''>('');
   const [ageYears, setAgeYears] = useState('0');
@@ -68,11 +70,12 @@ export default function AddCat() {
   const [customBreed, setCustomBreed] = useState('');
   const [color, setColor] = useState('');
   const [traits, setTraits] = useState<string[]>([]);
-  const [photos, setPhotos] = useState<string[]>([]);
+  const [existingPhotos, setExistingPhotos] = useState<Array<{url: string, publicId: string}>>([]);
+  const [newPhotos, setNewPhotos] = useState<string[]>([]);
   const [vaccinated, setVaccinated] = useState(false);
   const [notes, setNotes] = useState('');
-  const [loading, setLoading] = useState(false);
   const [showBreedModal, setShowBreedModal] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
 
   const [errors, setErrors] = useState({
     name: '',
@@ -81,26 +84,83 @@ export default function AddCat() {
     photos: '',
   });
 
-  const pickImage = async () => {
-    if (photos.length >= 5) {
-      Alert.alert('ไม่สามารถเพิ่มรูปได้', 'สามารถเพิ่มรูปได้สูงสุด 5 รูป');
-      return;
+  // Load cat data
+  useEffect(() => {
+    if (catId && isAuthenticated) {
+      loadCatData();
     }
+  }, [catId, isAuthenticated]);
 
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: true,
-      aspect: [4, 3],
-      quality: 0.8,
-    });
+  const loadCatData = async () => {
+    try {
+      setLoading(true);
+      console.log('📥 Loading cat data for ID:', catId);
 
-    if (!result.canceled && result.assets[0]) {
-      setPhotos([...photos, result.assets[0].uri]);
+      const response = await catAPI.getCat(catId);
+
+      if (response?.status === 'ok' && response?.data) {
+        const cat = response.data;
+        setCatData(cat);
+
+        // Populate form
+        setName(cat.name || '');
+        setGender(cat.gender || '');
+        setAgeYears(cat.ageYears?.toString() || '0');
+        setAgeMonths(cat.ageMonths?.toString() || '0');
+        setBreed(cat.breed || '');
+        setColor(cat.color || '');
+        setTraits(cat.traits || []);
+        setExistingPhotos(cat.photos || []);
+        setVaccinated(cat.vaccinated || false);
+        setNotes(cat.notes || '');
+
+        // Handle custom breed
+        if (cat.breed && !CAT_BREEDS.includes(cat.breed)) {
+          setBreed('อื่นๆ');
+          setCustomBreed(cat.breed);
+        }
+
+        console.log('✅ Cat data loaded successfully');
+      }
+    } catch (error: any) {
+      console.error('❌ Error loading cat data:', error);
+      Alert.alert('เกิดข้อผิดพลาด', 'ไม่สามารถโหลดข้อมูลแมวได้');
+      router.back();
+    } finally {
+      setLoading(false);
     }
   };
 
-  const removePhoto = (index: number) => {
-    setPhotos(photos.filter((_, i) => i !== index));
+  const pickNewImage = async () => {
+    const totalPhotos = existingPhotos.length + newPhotos.length;
+    if (totalPhotos >= 5) {
+      Alert.alert('ไม่สามารถเพิ่มรูปได้', 'สามารถมีรูปได้สูงสุด 5 รูป');
+      return;
+    }
+
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [4, 3],
+        quality: 0.8,
+      });
+
+      if (!result.canceled && result.assets[0]) {
+        setNewPhotos([...newPhotos, result.assets[0].uri]);
+      }
+    } catch (error) {
+      console.error('Error picking image:', error);
+      Alert.alert('เกิดข้อผิดพลาด', 'ไม่สามารถเลือกรูปภาพได้');
+    }
+  };
+
+  const removeExistingPhoto = (index: number) => {
+    setExistingPhotos(existingPhotos.filter((_, i) => i !== index));
+  };
+
+  const removeNewPhoto = (index: number) => {
+    setNewPhotos(newPhotos.filter((_, i) => i !== index));
   };
 
   const toggleTrait = (trait: string) => {
@@ -124,8 +184,9 @@ export default function AddCat() {
     let isValid = true;
 
     if (step === 1) {
-      // Step 1: Photos
-      if (photos.length === 0) {
+      // Step 1: Photos - must have at least 1 (existing or new)
+      const totalPhotos = existingPhotos.length + newPhotos.length;
+      if (totalPhotos === 0) {
         newErrors.photos = 'กรุณาเพิ่มรูปภาพอย่างน้อย 1 รูป';
         isValid = false;
       }
@@ -169,16 +230,16 @@ export default function AddCat() {
     setCurrentStep(currentStep - 1);
   };
 
-  const handleSubmit = async () => {
+  const handleSave = async () => {
     if (!validateStep(3)) return;
 
-    setLoading(true);
+    setSaving(true);
     try {
-      // ✅ แก้ไข: ไม่ต้องเช็ค token ใน component - API service จัดการแล้ว
-      console.log('🔄 Submitting cat data...');
-      console.log('📷 Photos count:', photos.length);
+      console.log('💾 Saving cat changes...');
+      console.log('📷 Existing photos count:', existingPhotos.length);
+      console.log('📷 New photos count:', newPhotos.length);
 
-      // ✅ แก้ไข: สร้าง FormData ที่ถูกต้อง
+      // Create FormData
       const formData = new FormData();
       formData.append('name', name.trim());
       formData.append('gender', gender);
@@ -198,11 +259,18 @@ export default function AddCat() {
       formData.append('vaccinated', String(vaccinated));
       if (notes) formData.append('notes', notes.trim());
 
-      // ✅ แก้ไข: Photo handling for React Native
-      for (let i = 0; i < photos.length; i++) {
-        const photoUri = photos[i];
+      // Add existing photos info (to keep them)
+      console.log('📤 Sending existing photos:', existingPhotos);
+      existingPhotos.forEach((photo, index) => {
+        formData.append(`existingPhotos[${index}][url]`, photo.url);
+        formData.append(`existingPhotos[${index}][publicId]`, photo.publicId);
+        console.log(`📋 Existing photo ${index}:`, photo.url.substring(0, 50) + '...');
+      });
 
-        // สร้าง filename
+      // Add new photos
+      console.log('📤 Sending new photos:', newPhotos.length);
+      for (let i = 0; i < newPhotos.length; i++) {
+        const photoUri = newPhotos[i];
         const timestamp = Date.now();
         const filename = `cat_${timestamp}_${i}.jpg`;
 
@@ -213,21 +281,29 @@ export default function AddCat() {
         };
 
         formData.append('photos', photo);
-        console.log(`📷 Added photo ${i + 1}:`, filename);
+        console.log(`📷 Added new photo ${i + 1}:`, filename, photoUri.substring(0, 50) + '...');
       }
 
-      // ✅ เรียก API
-      const response = await catAPI.createCat(formData);
-      console.log('✅ Cat created successfully:', response);
+      const response = await catAPI.updateCat(catId, formData);
+      console.log('✅ Cat updated successfully:', response);
+      console.log('📷 Response photos:', response?.data?.photos?.length || 0);
 
-      // ✅ Navigate ไปหน้า home
-      console.log('🏠 Navigating to home...');
-      router.replace('/(tabs)/home');
+      Alert.alert(
+        'สำเร็จ!',
+        'บันทึกข้อมูลแมวแล้ว',
+        [{
+          text: 'ตกลง',
+          onPress: () => {
+            // Navigate back to profile to see changes
+            router.replace('/(tabs)/profile');
+          }
+        }]
+      );
 
     } catch (error: any) {
-      console.error('❌ Add cat error:', error);
+      console.error('❌ Update cat error:', error);
 
-      let errorMessage = 'เพิ่มข้อมูลแมวไม่สำเร็จ กรุณาลองใหม่อีกครั้ง';
+      let errorMessage = 'บันทึกข้อมูลไม่สำเร็จ กรุณาลองใหม่อีกครั้ง';
 
       if (error.response?.data?.message) {
         errorMessage = error.response.data.message;
@@ -235,9 +311,51 @@ export default function AddCat() {
         errorMessage = error.message;
       }
 
-      Alert.alert('เพิ่มข้อมูลไม่สำเร็จ', errorMessage);
+      Alert.alert('บันทึกไม่สำเร็จ', errorMessage);
     } finally {
-      setLoading(false);
+      setSaving(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    Alert.alert(
+      'ลบข้อมูลแมว',
+      'คุณต้องการลบข้อมูลแมวนี้หรือไม่? การดำเนินการนี้ไม่สามารถยกเลิกได้',
+      [
+        { text: 'ยกเลิก', style: 'cancel' },
+        {
+          text: 'ลบ',
+          style: 'destructive',
+          onPress: confirmDelete
+        }
+      ]
+    );
+  };
+
+  const confirmDelete = async () => {
+    try {
+      setSaving(true);
+      console.log('🗑️ Deleting cat...');
+
+      await catAPI.deleteCat(catId);
+      console.log('✅ Cat deleted successfully');
+
+      Alert.alert(
+        'ลบสำเร็จ',
+        'ลบข้อมูลแมวแล้ว',
+        [{
+          text: 'ตกลง',
+          onPress: () => {
+            // Navigate back to profile
+            router.replace('/(tabs)/profile');
+          }
+        }]
+      );
+
+    } catch (error: any) {
+      console.error('❌ Delete cat error:', error);
+      Alert.alert('ลบไม่สำเร็จ', 'ไม่สามารถลบข้อมูลแมวได้');
+      setSaving(false);
     }
   };
 
@@ -269,13 +387,13 @@ export default function AddCat() {
               )}
             </View>
             <Text
-              className="text-xs mt-2 text-center "
+              className="text-xs mt-2 text-center"
               style={{
                 color: step <= currentStep ? colors.primary : colors.textSecondary,
                 fontWeight: step === currentStep ? 'bold' : 'normal',
               }}
             >
-              {step === 1 ? 'รูปภาพ' : step === 2 ? 'พื้นฐาน' : step === 3 ? 'สายพันธุ์' : 'เพิ่มเติม'}
+              {step === 1 ? 'รูปภาพ' : step === 2 ? 'ข้อมูลพื้นฐาน' : step === 3 ? 'สายพันธุ์' : 'เพิ่มเติม'}
             </Text>
           </View>
           {index < 3 && (
@@ -295,7 +413,7 @@ export default function AddCat() {
   const getStepTitle = () => {
     switch (currentStep) {
       case 1:
-        return 'เพิ่มรูปภาพแมว';
+        return 'จัดการรูปภาพแมว';
       case 2:
         return 'ข้อมูลพื้นฐาน';
       case 3:
@@ -313,19 +431,21 @@ export default function AddCat() {
         return (
           <View>
             <Text style={{ color: colors.text }} className="text-sm font-medium mb-3">
-              เพิ่มรูปภาพแมวของคุณ (1-5 รูป) *
+              รูปภาพแมวของคุณ (1-5 รูป) *
             </Text>
+
             <ScrollView horizontal showsHorizontalScrollIndicator={false}>
               <View className="flex-row gap-3">
-                {photos.map((photo, index) => (
-                  <View key={index} className="relative" style={{ overflow: 'visible' }}>
+                {/* Existing Photos */}
+                {existingPhotos.map((photo, index) => (
+                  <View key={`existing-${index}`} className="relative" style={{ overflow: 'visible' }}>
                     <Image
-                      source={{ uri: photo }}
+                      source={{ uri: photo.url }}
                       style={{ width: 120, height: 120 }}
                       className="rounded-xl"
                     />
                     <TouchableOpacity
-                      onPress={() => removePhoto(index)}
+                      onPress={() => removeExistingPhoto(index)}
                       className="absolute rounded-full"
                       style={{
                         top: -8,
@@ -346,9 +466,58 @@ export default function AddCat() {
                     </TouchableOpacity>
                   </View>
                 ))}
-                {photos.length < 5 && (
+
+                {/* New Photos */}
+                {newPhotos.map((photo, index) => (
+                  <View key={`new-${index}`} className="relative" style={{ overflow: 'visible' }}>
+                    <Image
+                      source={{ uri: photo }}
+                      style={{ width: 120, height: 120 }}
+                      className="rounded-xl"
+                    />
+                    <View
+                      className="absolute rounded-full"
+                      style={{
+                        top: -8,
+                        left: -8,
+                        backgroundColor: '#10b981',
+                        width: 24,
+                        height: 24,
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                      }}
+                    >
+                      <Text style={{ color: 'white', fontSize: 10, fontWeight: 'bold' }}>
+                        NEW
+                      </Text>
+                    </View>
+                    <TouchableOpacity
+                      onPress={() => removeNewPhoto(index)}
+                      className="absolute rounded-full"
+                      style={{
+                        top: -8,
+                        right: -8,
+                        backgroundColor: '#ef4444',
+                        width: 28,
+                        height: 28,
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        shadowColor: '#000',
+                        shadowOffset: { width: 0, height: 2 },
+                        shadowOpacity: 0.25,
+                        shadowRadius: 3,
+                        elevation: 5,
+                      }}
+                    >
+                      <Ionicons name="close" size={18} color="white" />
+                    </TouchableOpacity>
+                  </View>
+                ))}
+
+                {/* Add Photo Button */}
+                {(existingPhotos.length + newPhotos.length) < 5 && (
                   <TouchableOpacity
-                    onPress={pickImage}
+                    onPress={pickNewImage}
                     className="items-center justify-center rounded-xl border-2 border-dashed"
                     style={{
                       width: 120,
@@ -365,13 +534,15 @@ export default function AddCat() {
                 )}
               </View>
             </ScrollView>
+
             {errors.photos && (
               <Text style={{ color: colors.error }} className="text-xs mt-2">
                 {errors.photos}
               </Text>
             )}
+
             <Text style={{ color: colors.textSecondary }} className="text-xs mt-3">
-              💡 เคล็ดลับ: เลือกรูปที่ชัดเจน แสดงหน้าตาและลักษณะของแมวได้ดี
+              💡 รูปเดิมจะถูกเก็บไว้ รูปใหม่จะมีเครื่องหมาย "NEW"
             </Text>
           </View>
         );
@@ -405,7 +576,7 @@ export default function AddCat() {
                     className="text-center font-medium text-lg"
                     style={{ color: gender === 'male' ? colors.primary : colors.text }}
                   >
-                    <Foundation name="male-symbol" size={18} color="" /> เพศผู้
+                    เพศผู้
                   </Text>
                 </TouchableOpacity>
                 <TouchableOpacity
@@ -420,7 +591,7 @@ export default function AddCat() {
                     className="text-center font-medium text-lg"
                     style={{ color: gender === 'female' ? colors.primary : colors.text }}
                   >
-                    <Foundation name="female-symbol" size={18} color="" /> เพศเมีย
+                    เพศเมีย
                   </Text>
                 </TouchableOpacity>
               </View>
@@ -581,8 +752,8 @@ export default function AddCat() {
     }
   };
 
-  // แสดง loading ถ้า auth ยังไม่เสร็จ
-  if (authLoading) {
+  // Loading state
+  if (authLoading || loading) {
     return (
       <View
         className="flex-1 justify-center items-center"
@@ -594,9 +765,33 @@ export default function AddCat() {
     );
   }
 
-  // ถ้ายังไม่ได้ login ให้ไป login
+  // Auth check
   if (!isAuthenticated) {
     return <Redirect href="/(auth)/login" />;
+  }
+
+  // Cat not found
+  if (!catData) {
+    return (
+      <View
+        className="flex-1 justify-center items-center px-6"
+        style={{ backgroundColor: isDark ? '#1a1a1a' : '#FFFFFF' }}
+      >
+        <Ionicons name="alert-circle-outline" size={48} color={colors.textSecondary} />
+        <Text style={{ color: colors.text }} className="text-lg font-medium mt-4 mb-2">
+          ไม่พบข้อมูลแมว
+        </Text>
+        <Text style={{ color: colors.textSecondary }} className="text-sm text-center mb-6">
+          ไม่สามารถโหลดข้อมูลแมวได้
+        </Text>
+        <PinkButton
+          title="กลับไป"
+          onPress={() => router.back()}
+          size="medium"
+          variant="outline"
+        />
+      </View>
+    );
   }
 
   return (
@@ -613,25 +808,36 @@ export default function AddCat() {
         <View className="px-6">
           {/* Header */}
           <View className="items-center mb-8">
-            <View
-              className="mb-4 p-4 rounded-full"
-              style={{
-                backgroundColor: colors.primary + '20',
-              }}
-            >
-              <Ionicons name="paw" size={48} color={colors.primary} />
+            <View className="flex-row items-center justify-between w-full mb-4">
+              <TouchableOpacity onPress={() => router.back()}>
+                <Ionicons name="arrow-back" size={24} color={colors.text} />
+              </TouchableOpacity>
+
+              <View
+                className="p-4 rounded-full"
+                style={{
+                  backgroundColor: colors.primary + '20',
+                }}
+              >
+                <Ionicons name="create" size={32} color={colors.primary} />
+              </View>
+
+              <TouchableOpacity onPress={handleDelete}>
+                <Ionicons name="trash-outline" size={24} color="#ef4444" />
+              </TouchableOpacity>
             </View>
+
             <Text
               style={{ color: colors.text }}
               className="text-3xl font-bold mb-2"
             >
-              เพิ่มข้อมูลแมวของคุณ
+              แก้ไขข้อมูล{catData.name}
             </Text>
             <Text
               style={{ color: colors.textSecondary }}
               className="text-sm text-center"
             >
-              กรอกข้อมูลแมวเพื่อเริ่มหาคู่
+              ปรับปรุงข้อมูลแมวของคุณ
             </Text>
           </View>
 
@@ -674,7 +880,7 @@ export default function AddCat() {
                 <Text style={{ color: colors.text }} className="text-xl font-bold">
                   {getStepTitle()}
                 </Text>
-                <Text style={{ color: colors.textSecondary }} className="text-sm ">
+                <Text style={{ color: colors.textSecondary }} className="text-sm">
                   ขั้นตอนที่ {currentStep} จาก 4
                 </Text>
               </View>
@@ -705,9 +911,9 @@ export default function AddCat() {
                   />
                 ) : (
                   <PinkButton
-                    title="เพิ่มข้อมูลแมว"
-                    onPress={handleSubmit}
-                    loading={loading}
+                    title="บันทึกการเปลี่ยนแปลง"
+                    onPress={handleSave}
+                    loading={saving}
                     size="large"
                     variant="gradient"
                   />

@@ -39,6 +39,15 @@ const updateProfile = async (req, res) => {
   try {
     const { username, phone, location } = req.body;
 
+    // Get current owner first
+    const owner = await Owner.findById(req.user.id);
+    if (!owner) {
+      return res.status(404).json({
+        status: 'error',
+        message: 'Owner not found'
+      });
+    }
+
     const updateData = {};
     if (username) {
       // Check if username is already taken by another user
@@ -57,23 +66,31 @@ const updateProfile = async (req, res) => {
     if (phone) updateData.phone = phone;
     if (location) updateData.location = location;
 
-    const owner = await Owner.findByIdAndUpdate(
+    // Handle avatar update if new file uploaded
+    if (req.file) {
+      // Delete old avatar if exists
+      if (owner.avatar && owner.avatar.publicId) {
+        await deleteImage(owner.avatar.publicId);
+      }
+
+      // Upload new avatar to Cloudinary
+      const avatarUploadResult = await uploadToCloudinary(req.file.buffer, 'pawmise/avatars');
+      updateData.avatar = {
+        url: avatarUploadResult.secure_url,
+        publicId: avatarUploadResult.public_id
+      };
+    }
+
+    const updatedOwner = await Owner.findByIdAndUpdate(
       req.user.id,
       updateData,
       { new: true, runValidators: true }
     ).select('-passwordHash');
 
-    if (!owner) {
-      return res.status(404).json({
-        status: 'error',
-        message: 'Owner not found'
-      });
-    }
-
     res.status(200).json({
       status: 'ok',
       message: 'Profile updated successfully',
-      data: owner
+      data: updatedOwner
     });
 
   } catch (error) {
@@ -171,26 +188,25 @@ const uploadAvatar = async (req, res) => {
     }
 
     // Delete old avatar if exists
-    if (owner.avatarUrl) {
-      // Extract public_id from URL (format: pawmise/avatars/xxx)
-      const urlParts = owner.avatarUrl.split('/');
-      const publicIdWithExt = urlParts[urlParts.length - 1];
-      const publicId = `pawmise/avatars/${publicIdWithExt.split('.')[0]}`;
-      await deleteImage(publicId);
+    if (owner.avatar && owner.avatar.publicId) {
+      await deleteImage(owner.avatar.publicId);
     }
 
     // Upload new avatar to Cloudinary
     const result = await uploadToCloudinary(req.file.buffer, 'pawmise/avatars');
 
-    // Update owner with new avatar URL
-    owner.avatarUrl = result.secure_url;
+    // Update owner with new avatar
+    owner.avatar = {
+      url: result.secure_url,
+      publicId: result.public_id
+    };
     await owner.save();
 
     res.status(200).json({
       status: 'ok',
       message: 'Avatar uploaded successfully',
       data: {
-        avatarUrl: result.secure_url
+        avatar: owner.avatar
       }
     });
 

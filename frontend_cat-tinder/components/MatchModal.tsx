@@ -21,15 +21,20 @@ interface MatchModalProps {
   onSendMessage: () => void;
 }
 
-export default function MatchModal({ 
-  visible, 
-  match, 
-  onClose, 
-  onSendMessage 
+export default function MatchModal({
+  visible,
+  match,
+  onClose,
+  onSendMessage
 }: MatchModalProps) {
   const { colors, isDark } = useTheme();
 
-  if (!match) return null;
+
+  if (!match) {
+    return null;
+  }
+
+
 
   const { catAId, catBId } = match;
 
@@ -39,12 +44,20 @@ export default function MatchModal({
       transparent
       animationType="fade"
       onRequestClose={onClose}
+      statusBarTranslucent
+      presentationStyle="overFullScreen"
     >
       <View style={{
         flex: 1,
-        backgroundColor: 'rgba(0, 0, 0, 0.8)',
+        backgroundColor: 'rgba(0, 0, 0, 0.9)',
         justifyContent: 'center',
         alignItems: 'center',
+        zIndex: 9999,
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
       }}>
         <View style={{
           width: screenWidth * 0.9,
@@ -56,7 +69,11 @@ export default function MatchModal({
           shadowOffset: { width: 0, height: 8 },
           shadowOpacity: 0.3,
           shadowRadius: 16,
-          elevation: 16,
+          elevation: 20,
+          zIndex: 10000,
+          maxHeight: screenHeight * 0.8,
+          borderWidth: 2,
+          borderColor: colors.primary,
         }}>
           {/* Close Button */}
           <TouchableOpacity
@@ -109,7 +126,7 @@ export default function MatchModal({
             lineHeight: 22,
           }}>
             คุณและเจ้าของ {catAId.name} ชอบกันและกัน!{'\n'}
-            เริ่มบทสนทนากันได้เลย
+            ไปแชทกันเลย
           </Text>
 
           {/* Cat Photos */}
@@ -187,27 +204,11 @@ export default function MatchModal({
           {/* Action Buttons */}
           <View style={{ gap: 12, width: '100%' }}>
             <PinkButton
-              title="ส่งข้อความ 💬"
+              title="ไปแชทกัน 💬"
               onPress={onSendMessage}
               size="large"
               variant="gradient"
             />
-            
-            <TouchableOpacity
-              onPress={onClose}
-              style={{
-                paddingVertical: 12,
-                alignItems: 'center',
-              }}
-            >
-              <Text style={{
-                color: colors.textSecondary,
-                fontSize: 16,
-                fontWeight: '500',
-              }}>
-                ภายหลัง
-              </Text>
-            </TouchableOpacity>
           </View>
         </View>
       </View>

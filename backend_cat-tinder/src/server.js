@@ -12,8 +12,8 @@ const server = http.createServer(app);
 
 // Middleware
 app.use(cors());
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.use(express.json({ limit: '50mb' })); // Increase JSON limit
+app.use(express.urlencoded({ extended: true, limit: '50mb' })); // Increase URL encoded limit
 
 // Routes
 app.use('/api/auth', require('./routes/authRoute'));
@@ -51,3 +51,8 @@ server.listen(PORT, () => {
   console.log(`🔌 Socket.IO server is ready`);
   console.log(`📡 API URL: http://localhost:${PORT}`);
 });
+
+// Set server timeout for long-running requests (like file uploads)
+server.timeout = 300000; // 5 minutes
+server.keepAliveTimeout = 30000; // 30 seconds
+server.headersTimeout = 31000; // 31 seconds (should be higher than keepAliveTimeout)

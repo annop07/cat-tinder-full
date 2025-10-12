@@ -1,8 +1,9 @@
 const Cat = require('../models/Cat');
 const Owner = require('../models/Owner');
 const Swipe = require('../models/Swipe');
+const Match = require('../models/Match');
 const { uploadToCloudinary, deleteImages } = require('../utils/imageUpload');
-const { calculateDistance } = require('../utils/geolocation');
+const { calculateDistance, canCatsMatch, getMatchingMode } = require('../utils/geolocation');
 
 /**
  * Get cat feed for swiping
@@ -29,67 +30,136 @@ const getCatFeed = async (req, res) => {
       });
     }
 
-    // Get owner's location for distance calculation
+    // Get owner for location and preferences
     const owner = await Owner.findById(ownerId);
-    if (!owner || !owner.location) {
-      return res.status(400).json({
+    if (!owner) {
+      return res.status(404).json({
         status: 'error',
-        message: 'Owner location not set'
+        message: 'Owner not found'
       });
     }
+
+    // Determine matching mode
+    const matchingMode = getMatchingMode(owner, { defaultMode: 'flexible' });
+    const maxDistance = owner.preferences?.maxDistance || 100; // Default 100km
+
+    console.log(`🎯 Matching mode: ${matchingMode}, Max distance: ${maxDistance}km`);
 
     // Find cats that this cat has already swiped on
     const swipedCatIds = await Swipe.find({
       swiperCatId: myCat._id
     }).distinct('targetCatId');
 
+    console.log(`🚫 Excluding ${swipedCatIds.length} previously swiped cats:`, swipedCatIds);
+
+    // Find cats that this cat has already matched with
+    const matchedCats = await Match.find({
+      $or: [
+        { catAId: myCat._id },
+        { catBId: myCat._id }
+      ]
+    });
+
+    // Extract the other cat IDs from matches
+    const matchedCatIds = matchedCats.map(match => {
+      return match.catAId.toString() === myCat._id.toString()
+        ? match.catBId
+        : match.catAId;
+    });
+
+    console.log(`💕 Excluding ${matchedCatIds.length} already matched cats:`, matchedCatIds);
+
     // Get all my cat IDs to exclude
     const myCatIds = await Cat.find({ ownerId, active: true }).distinct('_id');
 
-    // Build query - opposite gender, not my cats, not swiped, within radius
+    console.log(`🚫 Excluding ${myCatIds.length} my own cats:`, myCatIds);
+
+    // Build basic query - opposite gender, not my cats, not swiped, not matched
     const query = {
-      _id: { $nin: [...myCatIds, ...swipedCatIds] },
+      _id: { $nin: [...myCatIds, ...swipedCatIds, ...matchedCatIds] },
       ownerId: { $ne: ownerId },
       gender: myCat.gender === 'male' ? 'female' : 'male', // Opposite gender
       active: true,
       readyForBreeding: true
     };
 
-    // Get potential matches
+    console.log('🎯 My cat:', { id: myCat._id, gender: myCat.gender, name: myCat.name });
+
+    // Get potential matches (get more to allow for location filtering)
     const potentialCats = await Cat.find(query)
-      .populate('ownerId', 'displayName avatarUrl location phone')
-      .limit(parseInt(limit) * 2) // Get more for filtering by distance
+      .populate('ownerId', 'username avatar location phone')
+      .limit(parseInt(limit) * 3) // Get more for smart filtering
       .sort({ createdAt: -1 });
 
-    // Filter by distance (50km radius)
-    const catsWithDistance = potentialCats
-      .map(cat => {
-        if (!cat.location || !cat.location.lat || !cat.location.lng) {
-          return null;
-        }
+    console.log(`📊 Found ${potentialCats.length} potential cats before location filter`);
 
-        const distance = calculateDistance(
-          { lat: owner.location.lat, lng: owner.location.lng },
-          { lat: cat.location.lat, lng: cat.location.lng }
-        );
+    // Smart location-based filtering using new geolib system
+    const filteredCats = [];
+    const matchingStats = {
+      gpsMatch: 0,
+      provinceMatch: 0,
+      unlimitedMatch: 0,
+      rejected: 0
+    };
 
-        if (distance === null || distance > 50) {
-          return null;
-        }
+    for (const cat of potentialCats) {
+      const matchResult = canCatsMatch(
+        owner,
+        cat,
+        { maxDistance, mode: matchingMode }
+      );
 
-        return {
+      if (matchResult.canMatch) {
+        const catWithDistance = {
           ...cat.toObject(),
-          distance
+          distance: matchResult.distance,
+          matchReason: matchResult.reason
         };
-      })
-      .filter(cat => cat !== null)
-      .slice(0, parseInt(limit)); // Limit to requested amount
+        filteredCats.push(catWithDistance);
+
+        // Update stats
+        if (matchResult.distance !== null) {
+          matchingStats.gpsMatch++;
+        } else if (matchResult.reason.includes('province')) {
+          matchingStats.provinceMatch++;
+        } else {
+          matchingStats.unlimitedMatch++;
+        }
+
+      } else {
+        matchingStats.rejected++;
+      }
+
+      // Stop when we have enough cats
+      if (filteredCats.length >= parseInt(limit)) {
+        break;
+      }
+    }
+
+    // Sort by distance (closest first) for GPS matches, random for others
+    const sortedCats = filteredCats.sort((a, b) => {
+      if (a.distance !== null && b.distance !== null) {
+        return a.distance - b.distance; // Sort by distance
+      } else if (a.distance !== null) {
+        return -1; // GPS matches first
+      } else if (b.distance !== null) {
+        return 1; // GPS matches first
+      } else {
+        return Math.random() - 0.5; // Random for non-GPS matches
+      }
+    });
+
+    console.log(`🎯 Final result: ${sortedCats.length} cats (GPS: ${matchingStats.gpsMatch}, Province: ${matchingStats.provinceMatch}, Unlimited: ${matchingStats.unlimitedMatch}, Rejected: ${matchingStats.rejected})`);
+
+    const finalCats = sortedCats.slice(0, parseInt(limit));
 
     res.status(200).json({
       status: 'ok',
       data: {
-        cats: catsWithDistance,
-        myCatId: myCat._id
+        cats: finalCats,
+        myCatId: myCat._id,
+        matchingMode,
+        matchingStats
       }
     });
 
@@ -134,7 +204,7 @@ const getMyCats = async (req, res) => {
 const getCatById = async (req, res) => {
   try {
     const cat = await Cat.findById(req.params.id)
-      .populate('ownerId', 'displayName avatarUrl location phone');
+      .populate('ownerId', 'username avatar location phone');
 
     if (!cat) {
       return res.status(404).json({
@@ -261,6 +331,8 @@ const createCat = async (req, res) => {
  */
 const updateCat = async (req, res) => {
   try {
+    console.log('🔄 Update cat request received for ID:', req.params.id);
+
     const cat = await Cat.findById(req.params.id);
 
     if (!cat) {
@@ -269,6 +341,7 @@ const updateCat = async (req, res) => {
         message: 'Cat not found'
       });
     }
+
 
     // Check ownership
     if (cat.ownerId.toString() !== req.user.id) {
@@ -305,13 +378,39 @@ const updateCat = async (req, res) => {
     if (notes !== undefined) cat.notes = notes;
     if (active !== undefined) cat.active = active;
 
-    // Handle photo updates if new photos provided
-    if (req.files && req.files.length > 0) {
-      // Delete old photos from Cloudinary
-      const oldPublicIds = cat.photos.map(photo => photo.publicId).filter(id => id);
-      if (oldPublicIds.length > 0) {
-        await deleteImages(oldPublicIds);
+    // Handle photo updates
+    let finalPhotos = [];
+
+    // Parse existing photos from form data
+    const existingPhotos = [];
+
+    // Method 1: Try the array format
+    let i = 0;
+    while (req.body[`existingPhotos[${i}][url]`]) {
+      existingPhotos.push({
+        url: req.body[`existingPhotos[${i}][url]`],
+        publicId: req.body[`existingPhotos[${i}][publicId]`]
+      });
+      i++;
+    }
+
+    // Method 2: If no array format found, try direct existingPhotos field
+    if (existingPhotos.length === 0 && req.body.existingPhotos) {
+      try {
+        const parsed = typeof req.body.existingPhotos === 'string'
+          ? JSON.parse(req.body.existingPhotos)
+          : req.body.existingPhotos;
+        if (Array.isArray(parsed)) {
+          existingPhotos.push(...parsed);
+        }
+      } catch (e) {
+        console.log('⚠️ Failed to parse existingPhotos field:', e.message);
       }
+    }
+    finalPhotos = [...existingPhotos];
+
+    // Handle new photos if provided
+    if (req.files && req.files.length > 0) {
 
       // Upload new photos
       const photoUploadPromises = req.files.map(file =>
@@ -319,11 +418,44 @@ const updateCat = async (req, res) => {
       );
       const uploadResults = await Promise.all(photoUploadPromises);
 
-      cat.photos = uploadResults.map(result => ({
+      const newPhotos = uploadResults.map(result => ({
         url: result.secure_url,
         publicId: result.public_id
       }));
+
+      finalPhotos = [...finalPhotos, ...newPhotos];
     }
+
+    // Delete photos that are no longer needed
+    const oldPhotos = cat.photos || [];
+    const keptPublicIds = finalPhotos.map(photo => photo.publicId).filter(id => id);
+    const photosToDelete = oldPhotos.filter(photo =>
+      photo.publicId && !keptPublicIds.includes(photo.publicId)
+    );
+
+    if (photosToDelete.length > 0) {
+      const publicIdsToDelete = photosToDelete.map(photo => photo.publicId);
+      await deleteImages(publicIdsToDelete);
+    }
+
+    // Validate that we have at least 1 photo
+    if (finalPhotos.length === 0) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'At least 1 photo is required'
+      });
+    }
+
+    // Validate max photos
+    if (finalPhotos.length > 5) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Maximum 5 photos allowed'
+      });
+    }
+
+    // Update photos
+    cat.photos = finalPhotos;
 
     await cat.save();
 

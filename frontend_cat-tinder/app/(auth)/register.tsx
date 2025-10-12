@@ -11,29 +11,44 @@ import {
   Image,
 } from "react-native";
 import { useRouter } from "expo-router";
+import * as ImagePicker from 'expo-image-picker';
+import * as Location from 'expo-location';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
 import ThaiInput from '@/components/ThaiInput';
 import PinkButton from '@/components/PinkButton';
+import AntDesign from '@expo/vector-icons/AntDesign';
 
 const Register = () => {
   const router = useRouter();
   const { register, isAuthenticated } = useAuth();
   const { colors, isDark } = useTheme();
 
-  // Current step (1, 2, or 3)
+  // Current step (1, 2, 3, or 4)
   const [currentStep, setCurrentStep] = useState(1);
 
   // Form data
   const [username, setUsername] = useState("");
+  const [avatar, setAvatar] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [loading, setLoading] = useState(false);
+
+  // Location data
+  const [location, setLocation] = useState({
+    province: '',
+    lat: 0,
+    lng: 0,
+  });
+  const [locationLoading, setLocationLoading] = useState(false);
+  const [locationPermissionGranted, setLocationPermissionGranted] = useState(false);
+
   const [errors, setErrors] = useState({
     username: '',
+    avatar: '',
     email: '',
     phone: '',
     password: '',
@@ -62,7 +77,17 @@ const Register = () => {
     }
 
     if (step === 2) {
-      // Step 2: Email and Phone validation
+      // Step 2: Avatar validation
+      if (!avatar) {
+        newErrors.avatar = 'กรุณาเลือกรูปโปรไฟล์';
+        isValid = false;
+      } else {
+        newErrors.avatar = '';
+      }
+    }
+
+    if (step === 3) {
+      // Step 3: Email and Phone validation
       if (!email.trim()) {
         newErrors.email = 'กรุณากรอกอีเมล';
         isValid = false;
@@ -81,8 +106,8 @@ const Register = () => {
       }
     }
 
-    if (step === 3) {
-      // Step 3: Password validation
+    if (step === 4) {
+      // Step 4: Password validation
       if (!password) {
         newErrors.password = 'กรุณากรอกรหัสผ่าน';
         isValid = false;
@@ -108,6 +133,94 @@ const Register = () => {
     return isValid;
   };
 
+  // Location functions
+  const requestLocationPermission = async () => {
+    try {
+      setLocationLoading(true);
+      console.log('🔄 Requesting location permission...');
+
+      const { status } = await Location.requestForegroundPermissionsAsync();
+
+      if (status !== 'granted') {
+        console.log('❌ Location permission denied');
+        Alert.alert(
+          'การเข้าถึงตำแหน่ง',
+          'เราต้องการทราบตำแหน่งของคุณเพื่อหาแมวคู่ที่ใกล้เคียง\nคุณสามารถข้ามขั้นตอนนี้และเพิ่มข้อมูลภายหลังได้',
+          [
+            { text: 'ข้าม', style: 'cancel' },
+            { text: 'ไปตั้งค่า', onPress: () => Location.requestForegroundPermissionsAsync() }
+          ]
+        );
+        setLocationPermissionGranted(false);
+        return false;
+      }
+
+      console.log('✅ Location permission granted');
+      setLocationPermissionGranted(true);
+      await getCurrentLocation();
+      return true;
+    } catch (error) {
+      console.error('❌ Location permission error:', error);
+      Alert.alert('เกิดข้อผิดพลาด', 'ไม่สามารถขออนุญาตการเข้าถึงตำแหน่งได้');
+      return false;
+    } finally {
+      setLocationLoading(false);
+    }
+  };
+
+  const getCurrentLocation = async () => {
+    try {
+      setLocationLoading(true);
+      console.log('🔄 Getting current location...');
+
+      const currentLocation = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.Balanced,
+      });
+
+      const { latitude, longitude } = currentLocation.coords;
+      console.log('📍 Current location:', { latitude, longitude });
+
+      // Reverse geocode to get province
+      const address = await Location.reverseGeocodeAsync({ latitude, longitude });
+      const province = address[0]?.region || address[0]?.subregion || '';
+
+      console.log('🗺️ Address info:', address[0]);
+      console.log('🏢 Province:', province);
+
+      setLocation({
+        lat: latitude,
+        lng: longitude,
+        province: province,
+      });
+
+      Alert.alert(
+        'ตำแหน่งของคุณ',
+        `เราพบตำแหน่งของคุณที่: ${province || 'ไม่สามารถระบุจังหวัดได้'}\nLat: ${latitude.toFixed(4)}, Lng: ${longitude.toFixed(4)}`,
+        [{ text: 'ตกลง' }]
+      );
+
+    } catch (error) {
+      console.error('❌ Get location error:', error);
+      Alert.alert(
+        'ไม่สามารถหาตำแหน่งได้',
+        'กรุณาเปิด GPS และอนุญาตการเข้าถึงตำแหน่ง\nหรือข้ามขั้นตอนนี้และเพิ่มข้อมูลภายหลัง'
+      );
+    } finally {
+      setLocationLoading(false);
+    }
+  };
+
+  const skipLocation = () => {
+    Alert.alert(
+      'ข้ามการตั้งค่าตำแหน่ง',
+      'คุณสามารถเพิ่มข้อมูลตำแหน่งในภายหลังได้ที่หน้าโปรไฟล์\nการไม่มีข้อมูลตำแหน่งอาจทำให้การหาคู่แมวมีประสิทธิภาพน้อยลง',
+      [
+        { text: 'ยกเลิก', style: 'cancel' },
+        { text: 'ข้าม', onPress: () => console.log('User skipped location setup') }
+      ]
+    );
+  };
+
   const handleNext = () => {
     if (validateStep(currentStep)) {
       setCurrentStep(currentStep + 1);
@@ -118,20 +231,51 @@ const Register = () => {
     setCurrentStep(currentStep - 1);
   };
 
+  const pickImage = async () => {
+    try {
+      // Request permissions first
+      const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
+
+      if (permissionResult.granted === false) {
+        Alert.alert('สิทธิ์การเข้าถึง', 'กรุณาอนุญาตการเข้าถึงแกลเลอรี่เพื่อเลือกรูปโปรไฟล์');
+        return;
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [1, 1], // Square for avatar
+        quality: 0.5, // Reduced quality for faster upload
+        allowsMultipleSelection: false,
+      });
+
+      if (!result.canceled && result.assets && result.assets[0]) {
+        setAvatar(result.assets[0].uri);
+        setErrors({ ...errors, avatar: '' }); // Clear error when image is selected
+      }
+    } catch (error) {
+      console.error('Error picking image:', error);
+      Alert.alert('เกิดข้อผิดพลาด', 'ไม่สามารถเลือกรูปภาพได้ กรุณาลองใหม่อีกครั้ง');
+    }
+  };
+
   const handleSubmit = async () => {
-    if (!validateStep(3)) return;
+    if (!validateStep(4)) return;
 
     setLoading(true);
     try {
+      console.log('🔄 Submitting registration with location:', location);
+
       await register({
         email: email.trim(),
         password,
         username: username.trim(),
         phone: phone.trim() || undefined,
+        avatar: avatar,
         location: {
-          province: '',
-          lat: 0,
-          lng: 0,
+          province: location.province || '',
+          lat: location.lat || 0,
+          lng: location.lng || 0,
         },
       });
 
@@ -139,8 +283,24 @@ const Register = () => {
       router.replace('/(auth)/add-cat');
     } catch (error: any) {
       console.error('Register error:', error);
-      const errorMessage = error.response?.data?.message || error.message || 'กรุณาลองใหม่อีกครั้ง';
-      Alert.alert('สมัครสมาชิกไม่สำเร็จ', errorMessage);
+
+      let errorMessage = 'กรุณาลองใหม่อีกครั้ง';
+      let errorTitle = 'สมัครสมาชิกไม่สำเร็จ';
+
+      if (error.code === 'ECONNABORTED' || error.message?.includes('timeout')) {
+        errorTitle = 'การอัปโหลดใช้เวลานาน';
+        errorMessage = 'การอัปโหลดรูปภาพใช้เวลานานกว่าที่กำหนด กรุณาลองใช้รูปขนาดเล็กกว่า หรือตรวจสอบการเชื่อมต่ออินเทอร์เน็ต';
+      } else if (error.response?.status === 400) {
+        errorMessage = error.response?.data?.message || 'ข้อมูลไม่ครบถ้วนหรือไม่ถูกต้อง';
+      } else if (error.response?.status === 409) {
+        errorMessage = 'อีเมลหรือ username นี้ถูกใช้งานแล้ว';
+      } else if (error.response?.status >= 500) {
+        errorMessage = 'เซิร์ฟเวอร์มีปัญหา กรุณาลองใหม่ในภายหลัง';
+      } else if (error.response?.data?.message) {
+        errorMessage = error.response.data.message;
+      }
+
+      Alert.alert(errorTitle, errorMessage);
       setLoading(false);
     }
   };
@@ -148,22 +308,22 @@ const Register = () => {
   // Progress Indicator Component
   const ProgressIndicator = () => (
     <View className="flex-row justify-between items-center mb-8">
-      {[1, 2, 3].map((step, index) => (
+      {[1, 2, 3, 4].map((step, index) => (
         <React.Fragment key={step}>
           <View className="items-center flex-1">
             <View
               className="rounded-full items-center justify-center"
               style={{
-                width: 40,
-                height: 40,
+                width: 32,
+                height: 32,
                 backgroundColor: step <= currentStep ? colors.primary : colors.border,
               }}
             >
               {step < currentStep ? (
-                <Ionicons name="checkmark" size={24} color="white" />
+                <Ionicons name="checkmark" size={20} color="white" />
               ) : (
                 <Text
-                  className="font-bold text-base"
+                  className="font-bold text-sm"
                   style={{
                     color: step <= currentStep ? 'white' : colors.textSecondary,
                   }}
@@ -173,21 +333,21 @@ const Register = () => {
               )}
             </View>
             <Text
-              className="text-xs mt-2 text-center"
+              className="text-xs mt-1 text-center"
               style={{
                 color: step <= currentStep ? colors.primary : colors.textSecondary,
                 fontWeight: step === currentStep ? 'bold' : 'normal',
               }}
             >
-              {step === 1 ? 'ข้อมูลบัญชี' : step === 2 ? 'ติดต่อ' : 'รหัสผ่าน'}
+              {step === 1 ? 'บัญชี' : step === 2 ? 'รูปภาพ' : step === 3 ? 'ติดต่อ' : 'รหัสผ่าน'}
             </Text>
           </View>
-          {index < 2 && (
+          {index < 3 && (
             <View
               className="h-0.5 flex-1 mx-2"
               style={{
                 backgroundColor: step < currentStep ? colors.primary : colors.border,
-                marginTop: -20,
+                marginTop: -16,
               }}
             />
           )}
@@ -202,8 +362,10 @@ const Register = () => {
       case 1:
         return 'ข้อมูลบัญชี';
       case 2:
-        return 'ข้อมูลการติดต่อ';
+        return 'รูปโปรไฟล์';
       case 3:
+        return 'ข้อมูลการติดต่อ';
+      case 4:
         return 'ตั้งรหัสผ่าน';
       default:
         return '';
@@ -229,6 +391,50 @@ const Register = () => {
 
       case 2:
         return (
+          <View className="items-center">
+            
+
+            <TouchableOpacity
+              onPress={pickImage}
+              className="items-center justify-center rounded-full border-4 mb-4"
+              style={{
+                width: 150,
+                height: 150,
+                borderColor: errors.avatar ? colors.error : colors.border,
+                backgroundColor: colors.surface,
+              }}
+            >
+              {avatar ? (
+                <Image
+                  source={{ uri: avatar }}
+                  style={{ width: 142, height: 142 }}
+                  className="rounded-full"
+                />
+              ) : (
+                <View className="items-center">
+                  <Ionicons name="camera" size={48} color={colors.primary} />
+                  <Text style={{ color: colors.textSecondary }} className="text-sm mt-2 text-center">
+                    แตะเพื่อเลือกรูป
+                  </Text>
+                </View>
+              )}
+            </TouchableOpacity>
+
+            {errors.avatar ? (
+              <Text style={{ color: colors.error }} className="text-xs text-center">
+                {errors.avatar}
+              </Text>
+            ) : null}
+
+            <Text style={{ color: colors.textSecondary }} className="text-xs text-center mt-2">
+               เลือกรูปที่ชัดเจนและแสดงหน้าตาของคุณ{'\n'}
+               ขนาดไฟล์เล็กจะอัปโหลดเร็วกว่า
+            </Text>
+          </View>
+        );
+
+      case 3:
+        return (
           <View>
             <ThaiInput
               label="อีเมล"
@@ -247,10 +453,89 @@ const Register = () => {
               keyboardType="phone-pad"
               error={errors.phone}
             />
+
+            {/* Location Section */}
+            <View className="">
+              <Text style={{ color: colors.text }} className="text-sm font-medium mb-4">
+                 ตำแหน่งของคุณ (ไม่บังคับ)
+              </Text>
+
+              {location.lat !== 0 && location.lng !== 0 ? (
+                // Location detected
+                <View
+                  className="p-4 rounded-2xl border"
+                  style={{
+                    borderColor: colors.primary,
+                    backgroundColor: colors.primary + '10',
+                  }}
+                >
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' , marginBottom: 14}}>
+
+                  <View className="flex-row items-center ">
+                    <Ionicons name="location" size={20} color={colors.primary} />
+                    <Text style={{ color: colors.primary }} className="text-sm font-medium ml-2">
+                      ตำแหน่งปัจจุบัน
+                    </Text>
+                  </View>
+                  <TouchableOpacity
+                    onPress={requestLocationPermission}
+                    className=""
+                    >
+                    <Text style={{ color: colors.primary }} className="text-sm font-medium">
+                      <AntDesign name="reload" size={16} color="" /> อัปเดตตำแหน่ง
+                    </Text>
+                  </TouchableOpacity>
+                  </View>
+
+
+                  <Text style={{ color: colors.text }} className="text-sm mb-1">
+                     {location.province || 'ไม่สามารถระบุจังหวัดได้'}
+                  </Text>
+                  <Text style={{ color: colors.textSecondary }} className="text-xs">
+                    Lat: {location.lat.toFixed(4)}, Lng: {location.lng.toFixed(4)}
+                  </Text>
+                  
+                </View>
+              ) : (
+                // No location detected
+                <View
+                  className="p-4 rounded-2xl border"
+                  style={{
+                    borderColor: colors.border,
+                    backgroundColor: colors.surface,
+                  }}
+                >
+                  <Text style={{ color: colors.textSecondary }} className="text-sm mb-4 text-center">
+                    ข้อมูลตำแหน่งช่วยให้เราหาแมวคู่ที่ใกล้เคียงกับคุณได้
+                  </Text>
+
+                  <View className="flex-row gap-3">
+                    <View className="flex-1">
+                      <PinkButton
+                        title={locationLoading ? "กำลังหาตำแหน่ง..." : " เปิดตำแหน่ง"}
+                        onPress={requestLocationPermission}
+                        loading={locationLoading}
+                        size="medium"
+                        variant="gradient"
+                      />
+                    </View>
+                    <View className="flex-1">
+                      <PinkButton
+                        title="ข้าม"
+                        onPress={skipLocation}
+                        size="medium"
+                        variant='outline'
+                      />
+                    </View>
+                  </View>
+                </View>
+              )}
+
+            </View>
           </View>
         );
 
-      case 3:
+      case 4:
         return (
           <View>
             <ThaiInput
@@ -320,7 +605,15 @@ const Register = () => {
                 style={{ backgroundColor: colors.primary + '20' }}
               >
                 <Ionicons
-                  name={currentStep === 1 ? 'person-outline' : currentStep === 2 ? 'mail-outline' : 'lock-closed-outline'}
+                  name={
+                    currentStep === 1
+                      ? 'person-outline'
+                      : currentStep === 2
+                        ? 'camera-outline'
+                        : currentStep === 3
+                          ? 'mail-outline'
+                          : 'lock-closed-outline'
+                  }
                   size={24}
                   color={colors.primary}
                 />
@@ -330,7 +623,7 @@ const Register = () => {
                   {getStepTitle()}
                 </Text>
                 <Text style={{ color: colors.textSecondary }} className="text-sm">
-                  ขั้นตอนที่ {currentStep} จาก 3
+                  ขั้นตอนที่ {currentStep} จาก 4
                 </Text>
               </View>
             </View>
@@ -351,7 +644,7 @@ const Register = () => {
                 </View>
               )}
               <View className={currentStep > 1 ? 'flex-1' : 'flex-1'}>
-                {currentStep < 3 ? (
+                {currentStep < 4 ? (
                   <PinkButton
                     title="ถัดไป"
                     onPress={handleNext}
@@ -360,7 +653,7 @@ const Register = () => {
                   />
                 ) : (
                   <PinkButton
-                    title="สร้างบัญชี"
+                    title={loading ? "กำลังอัปโหลดรูปภาพ..." : "สร้างบัญชี"}
                     onPress={handleSubmit}
                     loading={loading}
                     size="large"
@@ -370,7 +663,7 @@ const Register = () => {
               </View>
             </View>
 
-            {currentStep === 3 && (
+            {currentStep === 4 && (
               <Text
                 style={{ color: colors.textSecondary }}
                 className="text-xs text-center mt-4 leading-5"

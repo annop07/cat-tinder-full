@@ -35,6 +35,12 @@ const catSchema = new mongoose.Schema({
   },
 
   active: { type: Boolean, default: true, index: true },
+
+  // Interest usage tracking per cat
+  interestUsage: {
+    date: { type: Date, default: null },
+    count: { type: Number, default: 0 }
+  },
 }, { timestamps: true });
 
 // Indexes for efficient querying

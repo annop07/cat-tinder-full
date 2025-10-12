@@ -100,8 +100,15 @@ const sendMessage = async (req, res) => {
       text: text.trim()
     });
 
-    // Update match's lastMessageAt
+    // Update match's lastMessage and lastMessageAt
     await Match.findByIdAndUpdate(matchId, {
+      lastMessage: text.trim(),
+      lastMessageAt: newMessage.sentAt
+    });
+
+    console.log('✅ Updated match lastMessage:', {
+      matchId,
+      lastMessage: text.trim(),
       lastMessageAt: newMessage.sentAt
     });
 

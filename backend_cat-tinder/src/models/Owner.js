@@ -8,7 +8,10 @@ const ownerSchema = new mongoose.Schema({
   // Profile information
   username: { type: String, required: true, unique: true, index: true, trim: true },
   phone: { type: String },
-  avatarUrl: String,
+  avatar: {
+    url: { type: String, required: true },
+    publicId: String
+  },
 
   // Location for matching
   location: {
@@ -23,6 +26,12 @@ const ownerSchema = new mongoose.Schema({
 
   // Account status
   active: { type: Boolean, default: true },
+
+  // Daily interest usage tracking
+  interestUsage: {
+    date: { type: Date },
+    count: { type: Number, default: 0 }
+  }
 }, { timestamps: true });
 
 // Index for geospatial queries

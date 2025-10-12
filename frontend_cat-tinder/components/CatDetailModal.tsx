@@ -10,6 +10,7 @@ import {
   Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
 import { useTheme } from '@/contexts/ThemeContext';
 import PinkButton from '@/components/PinkButton';
 import { catAPI } from '@/services/api';
@@ -22,6 +23,8 @@ interface CatDetailModalProps {
   cat: Cat | null;
   onClose: () => void;
   onUpdate: () => void;
+  selectedForMatching?: string | null;
+  onSelectForMatching?: (catId: string) => void;
 }
 
 const TRAIT_LABELS: { [key: string]: string } = {
@@ -35,7 +38,15 @@ const TRAIT_LABELS: { [key: string]: string } = {
   quiet: 'เงียบ',
 };
 
-export default function CatDetailModal({ visible, cat, onClose, onUpdate }: CatDetailModalProps) {
+export default function CatDetailModal({
+  visible,
+  cat,
+  onClose,
+  onUpdate,
+  selectedForMatching,
+  onSelectForMatching
+}: CatDetailModalProps) {
+  const router = useRouter();
   const { colors, isDark } = useTheme();
   const [currentPhotoIndex, setCurrentPhotoIndex] = useState(0);
   const [deleteLoading, setDeleteLoading] = useState(false);
@@ -399,14 +410,94 @@ export default function CatDetailModal({ visible, cat, onClose, onUpdate }: CatD
             </View>
           )}
 
+          {/* Matching Selection Card */}
+          {onSelectForMatching && (
+            <View
+              className="rounded-3xl p-6 mb-6"
+              style={{
+                backgroundColor: isDark ? '#2a2a2a' : 'white',
+                shadowColor: '#000',
+                shadowOffset: { width: 0, height: 4 },
+                shadowOpacity: 0.1,
+                shadowRadius: 12,
+                elevation: 5,
+              }}
+            >
+              <View className="flex-row items-center mb-4">
+                <View
+                  className="mr-3 p-2 rounded-xl"
+                  style={{ backgroundColor: colors.primary + '20' }}
+                >
+                  <Ionicons name="heart" size={24} color={colors.primary} />
+                </View>
+                <Text style={{ color: colors.text }} className="text-xl font-bold">
+                  การหาคู่
+                </Text>
+              </View>
+
+              <View className="items-center">
+                {selectedForMatching === cat._id ? (
+                  <View className="items-center">
+                    <View
+                      className="w-16 h-16 rounded-full items-center justify-center mb-3"
+                      style={{ backgroundColor: colors.primary }}
+                    >
+                      <Ionicons name="heart" size={32} color="white" />
+                    </View>
+                    <Text
+                      className="text-base font-medium mb-2"
+                      style={{ color: colors.primary }}
+                    >
+                      ✅ เลือกสำหรับหาคู่แล้ว
+                    </Text>
+                    <Text
+                      className="text-sm text-center"
+                      style={{ color: colors.textSecondary }}
+                    >
+                      {cat.name} จะปรากฏในหน้าหาคู่
+                    </Text>
+                  </View>
+                ) : (
+                  <View className="items-center">
+                    <TouchableOpacity
+                      onPress={() => onSelectForMatching(cat._id)}
+                      className="w-16 h-16 rounded-full items-center justify-center mb-3 border-2 border-dashed"
+                      style={{ borderColor: colors.primary, backgroundColor: colors.primary + '10' }}
+                    >
+                      <Ionicons name="heart-outline" size={32} color={colors.primary} />
+                    </TouchableOpacity>
+                    <Text
+                      className="text-base font-medium mb-2"
+                      style={{ color: colors.text }}
+                    >
+                      เลือก {cat.name} สำหรับหาคู่
+                    </Text>
+                    <Text
+                      className="text-sm text-center mb-4"
+                      style={{ color: colors.textSecondary }}
+                    >
+                      แมวที่เลือกจะปรากฏในหน้าหาคู่
+                    </Text>
+                    <PinkButton
+                      title="เลือกสำหรับหาคู่"
+                      onPress={() => onSelectForMatching(cat._id)}
+                      size="medium"
+                      variant="gradient"
+                    />
+                  </View>
+                )}
+              </View>
+            </View>
+          )}
+
           {/* Action Buttons */}
           <View className="flex-row gap-3 mt-4">
             <View className="flex-1">
               <PinkButton
                 title="แก้ไขข้อมูล"
                 onPress={() => {
-                  // TODO: Open edit modal
-                  Alert.alert('Coming Soon', 'ฟีเจอร์แก้ไขข้อมูลแมวกำลังพัฒนา');
+                  onClose(); // Close modal first
+                  router.push(`/(auth)/edit-cat?catId=${cat._id}`);
                 }}
                 size="medium"
                 variant="outline"
@@ -419,8 +510,6 @@ export default function CatDetailModal({ visible, cat, onClose, onUpdate }: CatD
                 loading={deleteLoading}
                 size="medium"
                 variant="outline"
-                style={{ borderColor: '#ef4444' }}
-                textStyle={{ color: '#ef4444' }}
               />
             </View>
           </View>

@@ -2,6 +2,11 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { validationResult } = require('express-validator');
 const Owner = require('../models/Owner');
+const Cat = require('../models/Cat');
+const Swipe = require('../models/Swipe');
+const Match = require('../models/Match');
+const Message = require('../models/Message');
+const { uploadToCloudinary, deleteImage, deleteImages } = require('../utils/imageUpload');
 
 /**
  * Generate JWT token
@@ -32,6 +37,17 @@ const register = async (req, res) => {
 
     const { email, password, username, phone, location } = req.body;
 
+    // Validate avatar upload
+    if (!req.file) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Avatar image is required'
+      });
+    }
+
+    // Upload avatar to Cloudinary
+    const avatarUploadResult = await uploadToCloudinary(req.file.buffer, 'pawmise/avatars');
+
     // Check if user already exists (email or username)
     const existingOwner = await Owner.findOne({
       $or: [{ email }, { username }]
@@ -60,6 +76,10 @@ const register = async (req, res) => {
       passwordHash,
       username,
       phone,
+      avatar: {
+        url: avatarUploadResult.secure_url,
+        publicId: avatarUploadResult.public_id
+      },
       location: location || { province: '', lat: 0, lng: 0 },
       onboardingCompleted: false
     });
@@ -218,9 +238,127 @@ const logout = async (req, res) => {
   }
 };
 
+/**
+ * Delete user account and all related data
+ * DELETE /api/auth/delete-account
+ */
+const deleteAccount = async (req, res) => {
+  try {
+    const ownerId = req.user.id;
+    console.log('🗑️ Starting account deletion for user:', ownerId);
+
+    // Get user's cats
+    const userCats = await Cat.find({ ownerId });
+    const catIds = userCats.map(cat => cat._id);
+    console.log(`🐱 Found ${userCats.length} cats to delete`);
+
+    // Collect all image public IDs for cleanup
+    const imagePublicIds = [];
+
+    // Add cat photos
+    userCats.forEach(cat => {
+      if (cat.photos && cat.photos.length > 0) {
+        cat.photos.forEach(photo => {
+          if (photo.publicId) {
+            imagePublicIds.push(photo.publicId);
+          }
+        });
+      }
+    });
+
+    // Add user avatar
+    const owner = await Owner.findById(ownerId);
+    if (owner && owner.avatar && owner.avatar.publicId) {
+      imagePublicIds.push(owner.avatar.publicId);
+    }
+
+    // 1. Delete all swipes involving user's cats
+    const swipeDeleteResult = await Swipe.deleteMany({
+      $or: [
+        { swiperCatId: { $in: catIds } },
+        { targetCatId: { $in: catIds } }
+      ]
+    });
+    console.log(`🔄 Deleted ${swipeDeleteResult.deletedCount} swipes`);
+
+    // 2. Find and delete matches involving user's cats
+    const matchesToDelete = await Match.find({
+      $or: [
+        { cat1Id: { $in: catIds } },
+        { cat2Id: { $in: catIds } }
+      ]
+    });
+    const matchIds = matchesToDelete.map(match => match._id);
+    console.log(`💕 Found ${matchesToDelete.length} matches to delete`);
+
+    // 3. Delete all messages in those matches
+    if (matchIds.length > 0) {
+      const messageDeleteResult = await Message.deleteMany({
+        matchId: { $in: matchIds }
+      });
+      console.log(`💬 Deleted ${messageDeleteResult.deletedCount} messages`);
+    }
+
+    // 4. Delete matches
+    if (matchIds.length > 0) {
+      const matchDeleteResult = await Match.deleteMany({
+        _id: { $in: matchIds }
+      });
+      console.log(`💕 Deleted ${matchDeleteResult.deletedCount} matches`);
+    }
+
+    // 5. Delete all user's cats
+    const catDeleteResult = await Cat.deleteMany({ ownerId });
+    console.log(`🐱 Deleted ${catDeleteResult.deletedCount} cats`);
+
+    // 6. Delete Cloudinary images
+    if (imagePublicIds.length > 0) {
+      try {
+        console.log(`🖼️ Deleting ${imagePublicIds.length} images from Cloudinary`);
+        await deleteImages(imagePublicIds);
+        console.log('✅ Cloudinary images deleted successfully');
+      } catch (imageError) {
+        console.error('⚠️ Error deleting images from Cloudinary:', imageError);
+        // Continue with user deletion even if image cleanup fails
+      }
+    }
+
+    // 7. Delete the owner record
+    const ownerDeleteResult = await Owner.findByIdAndDelete(ownerId);
+    console.log(`👤 Deleted owner:`, ownerDeleteResult ? 'success' : 'failed');
+
+    // Summary
+    const summary = {
+      swipesDeleted: swipeDeleteResult.deletedCount,
+      matchesDeleted: matchIds.length,
+      messagesDeleted: matchIds.length > 0 ? await Message.countDocuments({ matchId: { $in: matchIds } }) : 0,
+      catsDeleted: catDeleteResult.deletedCount,
+      imagesDeleted: imagePublicIds.length,
+      ownerDeleted: ownerDeleteResult ? 1 : 0
+    };
+
+    console.log('✅ Account deletion completed:', summary);
+
+    res.status(200).json({
+      status: 'ok',
+      message: 'Account and all related data deleted successfully',
+      data: summary
+    });
+
+  } catch (error) {
+    console.error('❌ Delete account error:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'Server error during account deletion',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
 module.exports = {
   register,
   login,
   getCurrentUser,
-  logout
+  logout,
+  deleteAccount
 };

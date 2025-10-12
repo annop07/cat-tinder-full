@@ -25,29 +25,28 @@ export default function LoginScreen() {
     return !newErrors.email && !newErrors.password;
   };
 
+
   const handleLogin = async () => {
   if (!validate()) return;
 
   setLoading(true);
   try {
-    console.log('🔄 Starting login process...');
-    
     await login(email.trim(), password);
-    
-    console.log('✅ Login successful, navigating to home');
     router.replace('/(tabs)/home');
-    
+
   } catch (error: any) {
     console.error('❌ Login error:', error);
-    
+
     let errorMessage = 'เข้าสู่ระบบไม่สำเร็จ กรุณาลองใหม่อีกครั้ง';
-    
-    if (error.response?.data?.message) {
+
+    if (error.response?.status === 401) {
+      errorMessage = 'อีเมลหรือรหัสผ่านไม่ถูกต้อง';
+    } else if (error.response?.data?.message) {
       errorMessage = error.response.data.message;
     } else if (error.message) {
       errorMessage = error.message;
     }
-    
+
     Alert.alert('เข้าสู่ระบบไม่สำเร็จ', errorMessage);
   } finally {
     setLoading(false);
@@ -110,7 +109,7 @@ export default function LoginScreen() {
               />
             </View>
 
-            <TouchableOpacity 
+            <TouchableOpacity
               className="mb-6"
               onPress={() => router.push('./(auth)/forgot-password')}
             >

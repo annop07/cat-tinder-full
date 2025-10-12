@@ -10,7 +10,10 @@ export interface Owner {
   email: string;
   username: string;
   phone?: string;
-  avatarUrl?: string;
+  avatar: {
+    url: string;
+    publicId?: string;
+  };
   location?: Location;
   onboardingCompleted: boolean;
   active: boolean;
@@ -50,17 +53,21 @@ export interface Match {
   ownerAId: Owner;
   catBId: Cat;
   ownerBId: Owner;
-  lastMessageAt?: string;
+  lastMessage?: string; // Last message text
+  lastMessageAt?: string; // Last message timestamp
+  unreadCount?: number; // Number of unread messages
   createdAt: string;
 }
 
 export interface Message {
   _id: string;
   matchId: string;
-  senderOwnerId: Owner;
+  senderId?: string; // For easier comparison with user ID (deprecated, use senderOwnerId)
+  senderOwnerId: string | Owner; // Backend field - can be populated or just ID
   text: string;
   read: boolean;
-  sentAt: string;
+  sentAt: string; // Backend uses sentAt as createdAt
+  createdAt?: string; // Alternative timestamp field
 }
 
 export interface Swipe {
@@ -68,7 +75,7 @@ export interface Swipe {
   swiperOwnerId: string;
   swiperCatId: string;
   targetCatId: Cat;
-  action: 'like' | 'pass';
+  action: 'like' | 'interested' | 'pass';
   createdAt: string;
 }
 
@@ -101,6 +108,7 @@ export interface RegisterData {
   password: string;
   username: string;
   phone?: string;
+  avatar: string; // URI string for React Native
   location: Location;
 }
 
