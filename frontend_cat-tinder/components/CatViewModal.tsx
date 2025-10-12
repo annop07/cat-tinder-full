@@ -59,7 +59,7 @@ export default function CatViewModal({
   const handleInterested = async () => {
     try {
       // Check daily interest limit first
-      const interestStatus = await swipeAPI.getInterestStatus();
+      const interestStatus = await swipeAPI.getInterestStatus(cat._id);
 
       if (interestStatus?.status === 'ok' && interestStatus?.data?.hasUsedToday) {
         Alert.alert(

@@ -39,10 +39,12 @@ export interface Cat {
   photos: Photo[];
   readyForBreeding: boolean;
   vaccinated: boolean;
+  neutered: boolean;
   notes?: string;
   location?: Location;
   active: boolean;
   distance?: number; // For nearby cats
+  matchReason?: string; // Reason for match compatibility
   createdAt: string;
   updatedAt: string;
 }
