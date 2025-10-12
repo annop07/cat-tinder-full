@@ -537,7 +537,7 @@ export default function ProfileScreen() {
                     keyboardType="phone-pad"
                   />
 
-                  <ThaiInput
+                  {/* <ThaiInput
                     label="จังหวัด (ไม่บังคับ)"
                     value={editData.location.province}
                     onChangeText={(text) => setEditData(prev => ({
@@ -545,11 +545,11 @@ export default function ProfileScreen() {
                       location: { ...prev.location, province: text }
                     }))}
                     placeholder="กรุงเทพมหานคร"
-                  />
+                  /> */}
                 </View>
 
-                <View className="flex-row space-x-3 mt-6">
-                  <View className="flex-1">
+                <View className="flex-row mt-6 flex align-center justify-between">
+                  <View className="w-[48%]">
                     <PinkButton
                       title="ยกเลิก"
                       onPress={handleCancelEdit}
@@ -557,7 +557,7 @@ export default function ProfileScreen() {
                       variant="outline"
                     />
                   </View>
-                  <View className="flex-1">
+                  <View className="w-[48%]">
                     <PinkButton
                       title="บันทึก"
                       onPress={handleSaveProfile}

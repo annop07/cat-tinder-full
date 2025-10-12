@@ -254,7 +254,7 @@ export default function CatDetailModal({
                   เพศ:
                 </Text>
                 <Text style={{ color: colors.text }} className="text-base">
-                  {cat.gender === 'male' ? '♂️ เพศผู้' : '♀️ เพศเมีย'}
+                  {cat.gender === 'male' ? 'เพศชาย' : 'เพศหญิง'}
                 </Text>
               </View>
 
@@ -448,7 +448,7 @@ export default function CatDetailModal({
                       className="text-base font-medium mb-2"
                       style={{ color: colors.primary }}
                     >
-                      ✅ เลือกสำหรับหาคู่แล้ว
+                      เลือกสำหรับหาคู่แล้ว
                     </Text>
                     <Text
                       className="text-sm text-center"
