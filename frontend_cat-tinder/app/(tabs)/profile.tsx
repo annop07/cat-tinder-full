@@ -16,7 +16,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
-import { ownerAPI, catAPI } from '@/services/api';
+import { ownerAPI, catAPI, matchAPI } from '@/services/api';
 import { STORAGE_KEYS } from '@/constants/config';
 import PinkButton from '@/components/PinkButton';
 import ThaiInput from '@/components/ThaiInput';
@@ -30,6 +30,7 @@ export default function ProfileScreen() {
 
   const [profile, setProfile] = useState<Owner | null>(null);
   const [myCats, setMyCats] = useState<Cat[]>([]);
+  const [matchCount, setMatchCount] = useState<number>(0);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
@@ -73,14 +74,16 @@ export default function ProfileScreen() {
     try {
       setLoading(true);
 
-      // Load profile และ my cats พร้อมกัน
-      const [profileResponse, catsResponse] = await Promise.all([
+      // Load profile, my cats และ matches พร้อมกัน
+      const [profileResponse, catsResponse, matchesResponse] = await Promise.all([
         ownerAPI.getProfile(),
-        catAPI.getMyCats()
+        catAPI.getMyCats(),
+        matchAPI.getMatches({ limit: 100 }) // ดึงทุก match เพื่อนับจำนวน
       ]);
 
       console.log('📊 Profile data:', profileResponse);
       console.log('🐱 My cats:', catsResponse);
+      console.log('💕 Matches:', matchesResponse);
 
       if (profileResponse?.status === 'ok' && profileResponse?.data) {
         setProfile(profileResponse.data);
@@ -105,6 +108,16 @@ export default function ProfileScreen() {
 
         // Smart cat selection for matching based on 3 cases
         await handleCatSelectionLogic(cats);
+      }
+
+      // Handle matches data
+      if (matchesResponse?.status === 'ok' && matchesResponse?.data?.matches && Array.isArray(matchesResponse.data.matches)) {
+        const matches = matchesResponse.data.matches;
+        setMatchCount(matches.length);
+        console.log(`💕 Found ${matches.length} matches in profile`);
+      } else {
+        console.log('❌ No matches found or invalid response format');
+        setMatchCount(0);
       }
     } catch (error: any) {
       console.error('❌ Error loading profile data:', error);
@@ -579,7 +592,7 @@ export default function ProfileScreen() {
                   className="text-xl font-bold"
                   style={{ color: colors.primary }}
                 >
-                  0
+                  {matchCount}
                 </Text>
                 <Text
                   className="text-sm"

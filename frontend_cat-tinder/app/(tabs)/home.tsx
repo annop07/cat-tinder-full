@@ -296,7 +296,7 @@ function HomeScreen() {
           console.log('🔍 MATCH DEBUG - Setting modal to show');
           setCurrentMatch(response.data.match);
           setShowMatchModal(true);
-          // 🔍 IMPORTANT: Don't load more cats when match happens to avoid state conflicts
+          // 🔍 IMPORTANT: Don't move currentIndex yet - wait until modal is closed
         } else {
           console.log('🔍 MATCH DEBUG - No match will be shown because:');
           console.log('  - matched:', response.data.matched);
@@ -430,11 +430,9 @@ function HomeScreen() {
     setShowMatchModal(false);
     setCurrentMatch(null);
 
-    // Refresh feed to remove matched cats
-    console.log('🔄 Match modal closed - refreshing feed to remove matched cats');
-    setTimeout(() => {
-      loadCatFeed();
-    }, 500);
+    // ✅ Move to next card after closing match modal
+    setCurrentIndex((prev) => prev + 1);
+    console.log('🔄 Match modal closed - moving to next cat');
   };
 
   const handleSendMessage = () => {
@@ -446,6 +444,10 @@ function HomeScreen() {
       });
     }
     setCurrentMatch(null);
+
+    // ✅ Move to next card after going to chat
+    setCurrentIndex((prev) => prev + 1);
+    console.log('🔄 Navigating to chat - moving to next cat');
   };
 
   const handleCatTap = () => {
