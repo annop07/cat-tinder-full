@@ -7,12 +7,12 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 const getBaseURL = () => {
   // สำหรับ Android Emulator
   if (Platform.OS === 'android') {
-    return 'http://10.0.2.2:5000';
+    return 'http://10.0.2.2:4000';
   }
-  
+
   // สำหรับ iOS Simulator และ Physical Devices
   // เปลี่ยนเป็น IP address ของคอมพิวเตอร์คุณ
-  return 'http://192.168.110.207:5000';
+  return 'http://10.66.92.79:4000';
 };
 
 // สร้าง axios instance
@@ -111,9 +111,9 @@ const getApiUrl = () => {
   if (__DEV__) {
     // Development - ใช้ IP ที่เหมือนกับ Backend
     if (Platform.OS === 'android') {
-      return 'http://10.0.2.2:5000/api'; // Android Emulator
+      return 'http://10.0.2.2:4000/api'; // Android Emulator
     }
-    return 'http://192.168.110.207:5000/api'; // iOS Simulator / Physical Device
+    return 'http://10.66.92.79:4000/api'; // iOS Simulator / Physical Device
   }
   return 'https://your-production-api.com/api'; // Production
 };

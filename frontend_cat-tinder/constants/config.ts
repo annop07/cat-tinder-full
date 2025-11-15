@@ -1,15 +1,15 @@
 import { Platform } from 'react-native';
 
 // API Configuration
-// Backend รันที่ localhost:5000
+// Backend รันที่ localhost:4000
 // ⚠️ สำคัญ: ใช้ localhost สำหรับ web, IP Address สำหรับ mobile
 const getBaseUrl = () => {
   if (__DEV__) {
     // Development - ใช้ Platform-specific URLs
     if (Platform.OS === 'android') {
-      return 'http://192.168.110.207:5000'; // Android Emulator
+      return 'http://10.0.2.2:4000'; // Android Emulator (special IP for emulator)
     }
-    return 'http://192.168.110.207:5000'; // iOS Simulator / Physical Device
+    return 'http://10.66.92.79:4000'; // iOS Simulator / Physical Device (your Mac's IP)
   }
   return 'https://your-production-api.com'; // Production
 };
