@@ -2,10 +2,8 @@ const multer = require('multer');
 const cloudinary = require('./cloudinary');
 const { Readable } = require('stream');
 
-// Use memory storage for Multer
 const storage = multer.memoryStorage();
 
-// File filter to accept only images
 const fileFilter = (req, file, cb) => {
   if (file.mimetype.startsWith('image/')) {
     cb(null, true);
@@ -14,21 +12,14 @@ const fileFilter = (req, file, cb) => {
   }
 };
 
-// Multer upload configuration
 const upload = multer({
   storage: storage,
   fileFilter: fileFilter,
   limits: {
-    fileSize: 5 * 1024 * 1024 // 5MB limit
+    fileSize: 5 * 1024 * 1024
   }
 });
 
-/**
- * Upload image buffer to Cloudinary
- * @param {Buffer} buffer - Image buffer from multer
- * @param {string} folder - Cloudinary folder name
- * @returns {Promise<Object>} Cloudinary upload result
- */
 const uploadToCloudinary = (buffer, folder = 'pawmise') => {
   return new Promise((resolve, reject) => {
     const uploadStream = cloudinary.uploader.upload_stream(
@@ -53,10 +44,6 @@ const uploadToCloudinary = (buffer, folder = 'pawmise') => {
   });
 };
 
-/**
- * Delete image from Cloudinary
- * @param {string} publicId - Cloudinary public ID
- */
 const deleteImage = async (publicId) => {
   try {
     if (publicId) {
@@ -67,10 +54,6 @@ const deleteImage = async (publicId) => {
   }
 };
 
-/**
- * Delete multiple images from Cloudinary
- * @param {Array<string>} publicIds - Array of Cloudinary public IDs
- */
 const deleteImages = async (publicIds) => {
   try {
     if (publicIds && publicIds.length > 0) {

@@ -9,7 +9,7 @@ const getBaseUrl = () => {
     if (Platform.OS === 'android') {
       return 'http://10.0.2.2:4000'; // Android Emulator (special IP for emulator)
     }
-    return 'http://10.66.92.79:4000'; // iOS Simulator / Physical Device (your Mac's IP)
+    return 'http://10.66.92.95:4000'; // iOS Simulator / Physical Device (your Mac's IP)
   }
   return 'https://your-production-api.com'; // Production
 };

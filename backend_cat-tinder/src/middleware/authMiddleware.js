@@ -14,10 +14,7 @@ const protect = async (req, res, next) => {
     const token = authHeader.replace('Bearer ', '');
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
-    // ใช้ 'id' ตาม JWT payload ที่สร้างใน authController
-    req.user = {
-      id: decoded.id
-    };
+    req.user = { id: decoded.id };
 
     next();
   } catch (error) {

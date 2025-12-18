@@ -12,7 +12,7 @@ const getBaseURL = () => {
 
   // สำหรับ iOS Simulator และ Physical Devices
   // เปลี่ยนเป็น IP address ของคอมพิวเตอร์คุณ
-  return 'http://10.66.92.79:4000';
+  return 'http://10.66.92.95:4000';
 };
 
 // สร้าง axios instance
@@ -56,7 +56,7 @@ api.interceptors.response.use(
       console.error('⏱️ Request Timeout:', error.config?.url);
     } else if (error.response) {
       console.error('❌ API Error:', error.response.status, error.response.data);
-      
+
       // ถ้า token หมดอายุ ให้ลบ token และ redirect ไป login
       if (error.response.status === 401) {
         await AsyncStorage.removeItem('token');
@@ -78,28 +78,28 @@ export const API_ENDPOINTS = {
   LOGIN: '/api/auth/login',
   REGISTER: '/api/auth/register',
   ME: '/api/auth/me',
-  
+
   // Users
   USERS: '/api/users',
   USER_PROFILE: (userId: string) => `/api/users/${userId}`,
   UPDATE_PROFILE: '/api/users/profile',
-  
+
   // Cats
   CATS: '/api/cats',
   USER_CATS: (userId: string) => `/api/cats/user/${userId}`,
   CAT_DETAIL: (catId: string) => `/api/cats/${catId}`,
-  
+
   // Matches
   MATCHES: '/api/matches',
   SWIPE: '/api/matches/swipe',
   GET_MATCHES: '/api/matches/list',
-  
+
   // Conversations
   CONVERSATIONS: '/api/conversations',
   CREATE_CONVERSATION: '/api/conversations/create',
   CONVERSATION_LIST: '/api/conversations/list',
   CONVERSATION_DETAIL: (conversationId: string) => `/api/conversations/${conversationId}`,
-  
+
   // Messages
   MESSAGES: '/api/messages',
   CONVERSATION_MESSAGES: (conversationId: string) => `/api/messages/conversation/${conversationId}`,
@@ -123,7 +123,7 @@ export const API_URL = getApiUrl();
 // Storage Keys
 export const STORAGE_KEYS = {
   TOKEN: '@pawmise_token',
-  USER_ID: '@pawmise_user_id', 
+  USER_ID: '@pawmise_user_id',
   THEME: '@pawmise_theme',
 } as const;
 

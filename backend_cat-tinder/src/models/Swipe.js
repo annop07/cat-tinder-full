@@ -7,10 +7,7 @@ const swipeSchema = new mongoose.Schema({
   action: { type: String, enum: ['like', 'interested', 'pass'], required: true },
 }, { timestamps: { createdAt: true, updatedAt: false } });
 
-// ป้องกันปัดซ้ำคู่เดิม
 swipeSchema.index({ swiperOwnerId: 1, swiperCatId: 1, targetCatId: 1 }, { unique: true });
-
-// Index for finding who liked a specific cat
 swipeSchema.index({ targetCatId: 1, action: 1 });
 
 module.exports = mongoose.model('Swipe', swipeSchema);

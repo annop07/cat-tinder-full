@@ -5,21 +5,15 @@ const Match = require('../models/Match');
 const { uploadToCloudinary, deleteImages } = require('../utils/imageUpload');
 const { calculateDistance, canCatsMatch, getMatchingMode } = require('../utils/geolocation');
 
-/**
- * Get cat feed for swiping
- * GET /api/cats/feed
- */
 const getCatFeed = async (req, res) => {
   try {
     const ownerId = req.user.id;
     const { catId, limit = 20 } = req.query;
 
-    // Get the cat that will be swiping
     let myCat;
     if (catId) {
       myCat = await Cat.findOne({ _id: catId, ownerId, active: true });
     } else {
-      // Get first active cat if no catId provided
       myCat = await Cat.findOne({ ownerId, active: true });
     }
 
