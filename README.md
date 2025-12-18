@@ -10,19 +10,19 @@ The mobile application is built with React Native and Expo, while the backend is
 ## Screenshots
 
 ### 1. Login Screen
-<img src="oodo-cat-tinder/cat-tinder-photo/1-login.png" width="250">
+<img src="cat-tinder-photo/1-login.png" width="250">
 
 ### 2. Register Screen
-<img src="oodo-cat-tinder/cat-tinder-photo/2.1-register.PNG" width="250">
-<img src="oodo-cat-tinder/cat-tinder-photo/2.2-register.PNG" width="250">
-<img src="oodo-cat-tinder/cat-tinder-photo/2.3-register.PNG" width="250">
-<img src="oodo-cat-tinder/cat-tinder-photo/2.4-register.PNG" width="250">
+<img src="cat-tinder-photo/2.1-register.PNG" width="250">
+<img src="cat-tinder-photo/2.2-register.PNG" width="250">
+<img src="cat-tinder-photo/2.3-register.PNG" width="250">
+<img src="cat-tinder-photo/2.4-register.PNG" width="250">
 
 ### 3. Add Cat Screen
-<img src="oodo-cat-tinder/cat-tinder-photo/3-add-cat.PNG" width="250">
-<img src="oodo-cat-tinder/cat-tinder-photo/3.2-add-cat.PNG" width="250">
-<img src="oodo-cat-tinder/cat-tinder-photo/3.3-add-cat.PNG" width="250">
-<img src="oodo-cat-tinder/cat-tinder-photo/3.4-add-cat.PNG" width="250">
+<img src="cat-tinder-photo/3-add-cat.PNG" width="250">
+<img src="cat-tinder-photo/3.2-add-cat.PNG" width="250">
+<img src="cat-tinder-photo/3.3-add-cat.PNG" width="250">
+<img src="cat-tinder-photo/3.4-add-cat.PNG" width="250">
 
 ### 4. Main Screen & Cat Info
 <img src="cat-tinder-photo/4-main.jpeg" width="250">
